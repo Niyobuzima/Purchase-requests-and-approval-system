@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (userData: RegisterData) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -74,7 +74,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+
+    // Call backend to blacklist token
+    if (refreshToken) {
+      try {
+        await authAPI.logout(refreshToken);
+      } catch (error) {
+        // Even if backend call fails, still logout locally
+        console.error('Logout error:', error);
+      }
+    }
+
+    // Clear local storage and state
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setUser(null);
