@@ -1,13 +1,14 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
   allowedRoles?: UserRole[];
+  children: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles = [] }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles = [], children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -26,7 +27,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles = [] }) =>
     return <Navigate to="/unauthorized" replace />;
   }
 
-  return <Outlet />;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

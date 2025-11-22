@@ -43,34 +43,77 @@ export interface ChangePasswordData {
 }
 
 // Purchase Request Types
-export interface PurchaseRequestItem {
+export type PurchaseRequestStatus =
+  | 'DRAFT'
+  | 'PENDING'
+  | 'APPROVED_L1'
+  | 'APPROVED_L2'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'COMPLETED';
+
+export interface RequestItem {
   id?: number;
   description: string;
-  quantity: number;
-  unit_price: string;
-  total_price?: string;
+  quantity: number | string;
+  unit_price: number | string;
+  unit_of_measure?: string;
+  notes?: string;
+  subtotal?: number | string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PurchaseRequest {
   id: number;
+  requester: User;
+  requester_id?: number;
   title: string;
   description?: string;
-  vendor_name?: string;
-  requester: User;
-  status: 'DRAFT' | 'PENDING' | 'APPROVED_L1' | 'APPROVED_L2' | 'REJECTED' | 'CANCELLED';
-  total_amount: string;
-  items: PurchaseRequestItem[];
-  document_url?: string;
-  extracted_data?: any;
+  status: PurchaseRequestStatus;
+  status_display?: string;
+  total_amount: number | string;
+  items: RequestItem[];
+
+  // Approval tracking
+  approved_l1_by?: User | null;
+  approved_l1_at?: string | null;
+  approved_l2_by?: User | null;
+  approved_l2_at?: string | null;
+
+  // Rejection tracking
+  rejected_by?: User | null;
+  rejected_at?: string | null;
+  rejection_reason?: string;
+
+  // Timestamps
   created_at: string;
   updated_at: string;
+  submitted_at?: string | null;
+}
+
+export interface PurchaseRequestListItem {
+  id: number;
+  requester: User;
+  title: string;
+  description?: string;
+  status: PurchaseRequestStatus;
+  status_display: string;
+  total_amount: number | string;
+  item_count: number;
+  created_at: string;
+  submitted_at?: string | null;
 }
 
 export interface CreatePurchaseRequestData {
   title: string;
   description?: string;
-  vendor_name?: string;
-  items: Omit<PurchaseRequestItem, 'id' | 'total_price'>[];
+  status?: PurchaseRequestStatus;
+  items: Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>[];
+}
+
+export interface UpdatePurchaseRequestData extends CreatePurchaseRequestData {
+  id: number;
 }
 
 // Approval Types

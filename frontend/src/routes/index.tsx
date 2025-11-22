@@ -1,19 +1,22 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
+import Layout from '../components/layout/Layout';
 import LoginPage from '../features/auth/LoginPage';
 import RegisterPage from '../features/auth/RegisterPage';
 import HomePage from '../features/common/HomePage';
+import ProfilePage from '../features/profile/ProfilePage';
+
+// Purchase Request Components
+import RequestsListPage from '../features/requests/RequestsListPage';
+import CreateRequestPage from '../features/requests/CreateRequestPageWithModal';
+import EditRequestPage from '../features/requests/EditRequestPage';
+import RequestDetailPage from '../features/requests/RequestDetailPage';
+
+// Dashboard Components
+import StaffDashboard from '../features/staff/StaffDashboard';
 
 // Placeholder components for role-based dashboards
-const StaffDashboard: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Staff Dashboard</h1>
-      <p className="text-gray-600">Coming soon - Create and track purchase requests</p>
-    </div>
-  </div>
-);
 
 const ApproverDashboard: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -57,27 +60,59 @@ const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: <ProtectedRoute />,
+    element: (
+      <ProtectedRoute>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
         element: <HomePage />,
       },
+      {
+        path: 'profile',
+        element: <ProfilePage />,
+      },
     ],
   },
   {
     path: '/staff',
-    element: <ProtectedRoute allowedRoles={['STAFF']} />,
+    element: (
+      <ProtectedRoute allowedRoles={['STAFF']}>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: 'dashboard',
         element: <StaffDashboard />,
       },
+      {
+        path: 'requests',
+        element: <RequestsListPage />,
+      },
+      {
+        path: 'requests/create',
+        element: <CreateRequestPage />,
+      },
+      {
+        path: 'requests/:id/edit',
+        element: <EditRequestPage />,
+      },
+      {
+        path: 'requests/:id',
+        element: <RequestDetailPage />,
+      },
     ],
   },
   {
     path: '/approver',
-    element: <ProtectedRoute allowedRoles={['APPROVER_L1', 'APPROVER_L2']} />,
+    element: (
+      <ProtectedRoute allowedRoles={['APPROVER_L1', 'APPROVER_L2']}>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: 'dashboard',
@@ -87,7 +122,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/finance',
-    element: <ProtectedRoute allowedRoles={['FINANCE']} />,
+    element: (
+      <ProtectedRoute allowedRoles={['FINANCE']}>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: 'dashboard',
