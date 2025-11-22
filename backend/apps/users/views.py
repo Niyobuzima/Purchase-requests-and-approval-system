@@ -2,6 +2,7 @@ from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 from apps.users.serializers import (
     UserSerializer,
@@ -50,12 +51,8 @@ class LoginView(generics.GenericAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
 
-        # Try to get user by email
-        try:
-            user_obj = User.objects.get(email=email)
-            user = authenticate(username=user_obj.username, password=password)
-        except User.DoesNotExist:
-            user = None
+        # Authenticate using email (USERNAME_FIELD)
+        user = authenticate(request, username=email, password=password)
 
         if not user:
             return Response(
@@ -109,3 +106,37 @@ class ChangePasswordView(generics.UpdateAPIView):
         user.save()
 
         return Response({'message': 'Password updated successfully'})
+
+
+class LogoutView(generics.GenericAPIView):
+    """Logout endpoint - blacklist refresh token"""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            refresh_token = request.data.get('refresh_token')
+            if not refresh_token:
+                return Response(
+                    {'error': 'Refresh token is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Blacklist the refresh token
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(
+                {'message': 'Logout successful'},
+                status=status.HTTP_205_RESET_CONTENT
+            )
+        except TokenError as e:
+            return Response(
+                {'error': 'Invalid or expired token'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': 'Logout failed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )

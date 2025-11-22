@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
+import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -38,12 +39,9 @@ const LoginPage: React.FC = () => {
       } else {
         navigate('/');
       }
-    } catch (error: any) {
-      toast({
-        title: 'Login failed',
-        description: error.response?.data?.error || 'Invalid credentials',
-        variant: 'destructive',
-      });
+    } catch (error) {
+      const { toastData } = handleAndFormatError(ErrorHandlers.auth(error));
+      toast(toastData);
     } finally {
       setLoading(false);
     }

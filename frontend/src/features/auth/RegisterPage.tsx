@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 import type { RegisterData, UserRole } from '@/types';
 
 const RegisterPage: React.FC = () => {
@@ -64,12 +64,9 @@ const RegisterPage: React.FC = () => {
       } else {
         navigate('/');
       }
-    } catch (error: any) {
-      toast({
-        title: 'Registration failed',
-        description: error.response?.data?.error || 'Something went wrong',
-        variant: 'destructive',
-      });
+    } catch (error) {
+      const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
+      toast(toastData);
     } finally {
       setLoading(false);
     }
@@ -135,21 +132,6 @@ const RegisterPage: React.FC = () => {
                 onChange={handleChange}
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                id="role"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                required
-              >
-                <option value="STAFF">Staff</option>
-                <option value="APPROVER_L1">Approver Level 1</option>
-                <option value="APPROVER_L2">Approver Level 2</option>
-                <option value="FINANCE">Finance</option>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

@@ -32,4 +32,11 @@ export const authAPI = {
     const response = await axiosInstance.post<{ message: string }>('/auth/change-password/', passwords);
     return response.data;
   },
+
+  logout: async (refreshToken: string): Promise<{ message: string }> => {
+    const response = await axiosInstance.post<{ message: string }>('/auth/logout/', {
+      refresh_token: refreshToken,
+    });
+    return response.data;
+  },
 };
