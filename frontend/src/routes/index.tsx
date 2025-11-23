@@ -13,6 +13,9 @@ import CreateRequestPage from '../features/requests/CreateRequestPageWithModal';
 import EditRequestPage from '../features/requests/EditRequestPage';
 import RequestDetailPage from '../features/requests/RequestDetailPage';
 
+// Purchase Order Components
+import { PurchaseOrdersPage } from '../features/purchase-orders/PurchaseOrdersPage';
+
 // Dashboard Components
 import StaffDashboard from '../features/staff/StaffDashboard';
 import { ApproverDashboard } from '../features/approver/ApproverDashboard';
@@ -95,6 +98,10 @@ const router = createBrowserRouter([
       {
         path: 'requests/:id',
         element: <RequestDetailPage />,
+      },
+      {
+        path: 'purchase-orders',
+        element: <PurchaseOrdersPage />,
       },
     ],
   },

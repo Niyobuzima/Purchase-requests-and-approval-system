@@ -8,11 +8,12 @@ import { handleAndFormatError } from '@/utils/errorHandler';
 import { calculateSubtotal } from '@/utils/calculateSubtotal';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import { approvalsAPI, Approval } from '@/api/approvals';
+import { purchaseOrdersAPI, PurchaseOrder } from '@/api/purchaseOrders';
 import type { PurchaseRequest } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { ApprovalTimeline } from '@/components/approvals/ApprovalTimeline';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download } from 'lucide-react';
 
 const RequestDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +32,8 @@ const RequestDetailPage: React.FC = () => {
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectComments, setRejectComments] = useState('');
+  const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
+  const [downloadingPO, setDownloadingPO] = useState(false);
 
   // Determine back path based on user role
   const getBackPath = () => {
@@ -77,6 +80,17 @@ const RequestDetailPage: React.FC = () => {
         } catch (err) {
           // Approvals might not exist yet for draft requests, ignore error
           console.log('No approvals found for this request');
+        }
+
+        // Fetch purchase order if request is approved
+        if (data.status === 'APPROVED') {
+          try {
+            const pos = await purchaseOrdersAPI.getAll();
+            const linkedPO = pos.find(po => po.request === requestId);
+            setPurchaseOrder(linkedPO || null);
+          } catch (err) {
+            console.log('No purchase order found for this request');
+          }
         }
       } catch (error) {
         const { toastData } = handleAndFormatError(error);
@@ -195,6 +209,28 @@ const RequestDetailPage: React.FC = () => {
       toast(toastData);
     } finally {
       setProcessingApproval(false);
+    }
+  };
+
+  // Download PO PDF
+  const handleDownloadPO = async () => {
+    if (!purchaseOrder) return;
+
+    setDownloadingPO(true);
+    try {
+      await purchaseOrdersAPI.triggerDownload(purchaseOrder.id, purchaseOrder.po_number);
+      toast({
+        title: 'Success',
+        description: `Downloading ${purchaseOrder.po_number}.pdf`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to download PDF',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingPO(false);
     }
   };
 
@@ -398,6 +434,77 @@ const RequestDetailPage: React.FC = () => {
         {/* Approval Timeline - Show if request has been submitted */}
         {request.status !== 'DRAFT' && allApprovals.length > 0 && (
           <ApprovalTimeline approvals={allApprovals} requestStatus={request.status} />
+        )}
+
+        {/* Purchase Order - Show if request is approved and PO exists */}
+        {purchaseOrder && request.status === 'APPROVED' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Purchase Order Generated</CardTitle>
+              <CardDescription>
+                A purchase order has been automatically generated for this approved request
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-blue-600 rounded-full p-3">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">PO Number</p>
+                      <p className="text-2xl font-bold text-blue-900 font-mono">
+                        {purchaseOrder.po_number}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Generated on {new Date(purchaseOrder.generated_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end space-y-2">
+                    {purchaseOrder.pdf_file ? (
+                      <>
+                        <div className="flex items-center text-xs text-green-600 mb-1">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          PDF Ready
+                        </div>
+                        <Button
+                          onClick={handleDownloadPO}
+                          disabled={downloadingPO}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          {downloadingPO ? 'Downloading...' : 'Download PDF'}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center text-xs text-yellow-600 mb-1">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          PDF Generating...
+                        </div>
+                        <Button
+                          disabled
+                          variant="outline"
+                          className="opacity-50"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          PDF Not Ready
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
