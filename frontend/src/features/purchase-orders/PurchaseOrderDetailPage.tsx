@@ -362,11 +362,19 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                       <div className="flex items-center space-x-3">
                         {getValidationStatusBadge(receipt.validation_status)}
                         <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => navigate(`/staff/receipts/${receipt.id}/validate`)}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Validate
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(receipt.receipt_url, '_blank')}
                         >
-                          View
+                          View File
                         </Button>
                       </div>
                     </div>

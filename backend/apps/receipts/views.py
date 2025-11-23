@@ -63,7 +63,8 @@ class ReceiptViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Create receipt and automatically extract data using AI
+        Create receipt and automatically extract data using AI,
+        then automatically validate against PO
         """
         # Set the uploader
         receipt = serializer.save(uploaded_by=self.request.user)
@@ -81,6 +82,9 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 receipt.extracted_receipt_data = extracted_data
                 receipt.save(update_fields=['extracted_receipt_data'])
                 logger.info(f"Successfully extracted data from receipt {receipt.id}")
+
+                # Automatically run validation after extraction
+                self._auto_validate_receipt(receipt)
             else:
                 logger.warning(f"AI extraction failed for receipt {receipt.id}: {extracted_data.get('error')}")
 
@@ -88,84 +92,89 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             logger.error(f"Error processing receipt {receipt.id}: {e}")
             # Don't fail the upload, just log the error
 
-    @action(detail=True, methods=['post'])
-    def validate(self, request, pk=None):
+    def _validate_receipt_against_po(self, receipt, po, receipt_data):
         """
-        Validate receipt against purchase order
-
-        Compares extracted receipt data with PO items and amounts
+        Core validation logic comparing receipt data against PO.
+        
+        Returns:
+            tuple: (validation_status, discrepancies_list)
         """
-        receipt = self.get_object()
-
-        if not receipt.extracted_receipt_data:
-            return Response(
-                {'error': 'Receipt data has not been extracted yet'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get PO data
-        po = receipt.purchase_order
-        po_items = list(po.request.items.all())
-
-        # Extract receipt data
-        receipt_data = receipt.extracted_receipt_data
-        receipt_items = receipt_data.get('items', [])
-        receipt_total = receipt_data.get('total_amount')
-        receipt_vendor = receipt_data.get('vendor_name', '').lower()
-
-        # Get PO data
-        po_vendor = (po.request.vendor_name or '').lower()
-        po_total = float(po.request.total_amount)
-
-        # Initialize discrepancies list
         discrepancies = []
 
-        # 1. Vendor Name Check
-        if receipt_vendor and po_vendor:
-            # Simple substring match (case-insensitive)
+        # 1. Vendor name check (case-insensitive substring match)
+        po_vendor = (po.request.vendor_name or '').lower()
+        receipt_vendor = (receipt_data.get('vendor_name') or '').lower()
+
+        if po_vendor and receipt_vendor:
             if receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
                 discrepancies.append({
                     'type': 'vendor_mismatch',
                     'severity': 'medium',
-                    'message': f"Vendor name mismatch: PO has '{po.request.vendor_name}', Receipt has '{receipt_data.get('vendor_name')}'",
+                    'message': f"Vendor name mismatch",
                     'po_value': po.request.vendor_name,
-                    'receipt_value': receipt_data.get('vendor_name')
+                    'receipt_value': receipt_data.get('vendor_name'),
                 })
 
-        # 2. Total Amount Check (within �5% tolerance)
-        if receipt_total is not None:
-            tolerance = 0.05  # 5%
-            lower_bound = po_total * (1 - tolerance)
-            upper_bound = po_total * (1 + tolerance)
+        # 2. Total amount check (±5% tolerance)
+        po_total = float(po.request.total_amount)
+        receipt_total = receipt_data.get('total_amount')
 
-            if not (lower_bound <= float(receipt_total) <= upper_bound):
+        if receipt_total:
+            # Validate and convert receipt_total safely
+            try:
+                # Strip whitespace and convert to float
+                receipt_total_str = str(receipt_total).strip() if receipt_total else ''
+                if not receipt_total_str:
+                    raise ValueError("Empty total amount")
+                
+                receipt_total_float = float(receipt_total_str)
+                
+                # Check if within tolerance
+                tolerance = 0.05  # 5%
+                lower_bound = po_total * (1 - tolerance)
+                upper_bound = po_total * (1 + tolerance)
+
+                if not (lower_bound <= receipt_total_float <= upper_bound):
+                    difference = receipt_total_float - po_total
+                    discrepancies.append({
+                        'type': 'amount_mismatch',
+                        'severity': 'high',
+                        'message': f"Total amount outside 5% tolerance",
+                        'po_value': po_total,
+                        'receipt_value': receipt_total_float,
+                        'difference': difference,
+                    })
+            except (ValueError, TypeError) as e:
+                # Invalid numeric value in receipt total
                 discrepancies.append({
-                    'type': 'amount_mismatch',
+                    'type': 'invalid_amount',
                     'severity': 'high',
-                    'message': f"Total amount outside 5% tolerance: PO total ${po_total:.2f}, Receipt total ${receipt_total:.2f}",
+                    'message': f"Invalid total amount format in receipt: '{receipt_total}'",
                     'po_value': po_total,
-                    'receipt_value': float(receipt_total),
-                    'difference': abs(float(receipt_total) - po_total)
+                    'receipt_value': str(receipt_total),
+                    'error': str(e),
                 })
 
-        # 3. Item Count Check
+        # 3. Item count check
+        po_items = po.request.items.all()
+        receipt_items = receipt_data.get('items', [])
+
         if len(receipt_items) != len(po_items):
             discrepancies.append({
                 'type': 'item_count_mismatch',
                 'severity': 'medium',
                 'message': f"Item count mismatch: PO has {len(po_items)} items, Receipt has {len(receipt_items)} items",
                 'po_value': len(po_items),
-                'receipt_value': len(receipt_items)
+                'receipt_value': len(receipt_items),
             })
 
-        # 4. Item-by-Item Comparison (simple description matching)
+        # 4. Item matching
         po_descriptions = [item.description.lower() for item in po_items]
         receipt_descriptions = [item.get('description', '').lower() for item in receipt_items]
 
         # Check for missing items from receipt
         for po_item in po_items:
             po_desc = po_item.description.lower()
-            # Check if any receipt item matches (even partially)
             matched = any(
                 po_desc in receipt_desc or receipt_desc in po_desc
                 for receipt_desc in receipt_descriptions
@@ -183,7 +192,6 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         # Check for extra items in receipt
         for receipt_item in receipt_items:
             receipt_desc = receipt_item.get('description', '').lower()
-            # Check if any PO item matches (even partially)
             matched = any(
                 receipt_desc in po_desc or po_desc in receipt_desc
                 for po_desc in po_descriptions
@@ -199,16 +207,67 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 })
 
         # Determine validation status
-        if not discrepancies:
-            validation_status = 'MATCHED'
-        else:
-            validation_status = 'DISCREPANCY'
+        validation_status = 'DISCREPANCY' if discrepancies else 'MATCHED'
+        
+        return validation_status, discrepancies
+
+    def _auto_validate_receipt(self, receipt):
+        """
+        Automatically validate receipt against PO after AI extraction
+        """
+        try:
+            logger.info(f"Auto-validating receipt {receipt.id}...")
+
+            if not receipt.extracted_receipt_data:
+                return
+
+            po = receipt.purchase_order
+            receipt_data = receipt.extracted_receipt_data
+
+            # Use common validation logic
+            validation_status, discrepancies = self._validate_receipt_against_po(
+                receipt, po, receipt_data
+            )
+
+            # Update receipt with validation results
+            receipt.validation_status = validation_status
+            receipt.discrepancies = discrepancies
+            receipt.save(update_fields=['validation_status', 'discrepancies'])
+            
+            logger.info(f"Validation complete for receipt {receipt.id}: {receipt.validation_status}")
+
+        except Exception as e:
+            logger.error(f"Error auto-validating receipt {receipt.id}: {e}")
+
+    @action(detail=True, methods=['post'])
+    def validate(self, request, pk=None):
+        """
+        Validate receipt against purchase order
+
+        Compares extracted receipt data with PO items and amounts
+        """
+        receipt = self.get_object()
+
+        if not receipt.extracted_receipt_data:
+            return Response(
+                {'error': 'Receipt data has not been extracted yet'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get PO and receipt data
+        po = receipt.purchase_order
+        receipt_data = receipt.extracted_receipt_data
+
+        # Use common validation logic
+        validation_status, discrepancies = self._validate_receipt_against_po(
+            receipt, po, receipt_data
+        )
 
         # Save validation results
         with transaction.atomic():
             receipt.discrepancies = discrepancies
             receipt.validation_status = validation_status
-            receipt.save(update_fields=['discrepancies', 'validation_status'])
+            receipt.save(update_fields=['validation_status', 'discrepancies'])
 
         return Response({
             'validation_status': validation_status,
