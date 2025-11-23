@@ -63,7 +63,8 @@ class ReceiptViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Create receipt and automatically extract data using AI
+        Create receipt and automatically extract data using AI,
+        then automatically validate against PO
         """
         # Set the uploader
         receipt = serializer.save(uploaded_by=self.request.user)
@@ -81,12 +82,110 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 receipt.extracted_receipt_data = extracted_data
                 receipt.save(update_fields=['extracted_receipt_data'])
                 logger.info(f"Successfully extracted data from receipt {receipt.id}")
+
+                # Automatically run validation after extraction
+                self._auto_validate_receipt(receipt)
             else:
                 logger.warning(f"AI extraction failed for receipt {receipt.id}: {extracted_data.get('error')}")
 
         except Exception as e:
             logger.error(f"Error processing receipt {receipt.id}: {e}")
             # Don't fail the upload, just log the error
+
+    def _auto_validate_receipt(self, receipt):
+        """
+        Automatically validate receipt against PO after AI extraction
+        """
+        try:
+            logger.info(f"Auto-validating receipt {receipt.id}...")
+
+            if not receipt.extracted_receipt_data:
+                return
+
+            po = receipt.purchase_order
+            receipt_data = receipt.extracted_receipt_data
+
+            discrepancies = []
+
+            # 1. Vendor name check (case-insensitive substring match)
+            po_vendor = (po.request.vendor_name or '').lower()
+            receipt_vendor = (receipt_data.get('vendor_name') or '').lower()
+
+            if po_vendor and receipt_vendor:
+                if receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
+                    discrepancies.append({
+                        'type': 'vendor_mismatch',
+                        'severity': 'medium',
+                        'message': f"Vendor name mismatch",
+                        'po_value': po.request.vendor_name,
+                        'receipt_value': receipt_data.get('vendor_name'),
+                    })
+
+            # 2. Total amount check (±5% tolerance)
+            po_total = float(po.request.total_amount)
+            receipt_total = receipt_data.get('total_amount')
+
+            if receipt_total:
+                tolerance = 0.05  # 5%
+                lower_bound = po_total * (1 - tolerance)
+                upper_bound = po_total * (1 + tolerance)
+
+                if not (lower_bound <= float(receipt_total) <= upper_bound):
+                    difference = float(receipt_total) - po_total
+                    discrepancies.append({
+                        'type': 'amount_mismatch',
+                        'severity': 'high',
+                        'message': f"Total amount outside 5% tolerance",
+                        'po_value': po_total,
+                        'receipt_value': float(receipt_total),
+                        'difference': difference,
+                    })
+
+            # 3. Item count check
+            po_items = po.request.items.all()
+            receipt_items = receipt_data.get('items', [])
+
+            if len(receipt_items) != len(po_items):
+                discrepancies.append({
+                    'type': 'item_count_mismatch',
+                    'severity': 'medium',
+                    'message': f"Item count mismatch: PO has {len(po_items)} items, Receipt has {len(receipt_items)} items",
+                    'po_value': len(po_items),
+                    'receipt_value': len(receipt_items),
+                })
+
+            # 4. Item matching (check if each PO item exists in receipt)
+            for po_item in po_items:
+                found = False
+                for receipt_item in receipt_items:
+                    # Simple substring match on description
+                    po_desc = po_item.description.lower()
+                    receipt_desc = receipt_item.get('description', '').lower()
+                    if po_desc in receipt_desc or receipt_desc in po_desc:
+                        found = True
+                        break
+
+                if not found:
+                    discrepancies.append({
+                        'type': 'missing_item',
+                        'severity': 'medium',
+                        'message': f"Item from PO not found in receipt: {po_item.description}",
+                        'po_item': po_item.description,
+                    })
+
+            # Set validation status
+            if discrepancies:
+                receipt.validation_status = 'DISCREPANCY'
+                receipt.discrepancies = discrepancies
+            else:
+                receipt.validation_status = 'MATCHED'
+                receipt.discrepancies = []
+
+            receipt.save(update_fields=['validation_status', 'discrepancies'])
+            logger.info(f"Validation complete for receipt {receipt.id}: {receipt.validation_status}")
+
+        except Exception as e:
+            logger.error(f"Error auto-validating receipt {receipt.id}: {e}")
 
     @action(detail=True, methods=['post'])
     def validate(self, request, pk=None):
