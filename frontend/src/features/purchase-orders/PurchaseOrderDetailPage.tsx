@@ -48,11 +48,23 @@ export const PurchaseOrderDetailPage: React.FC = () => {
       return;
     }
 
+    // Validate poId is a valid numeric string
+    const id = parseInt(poId, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      toast({
+        title: 'Error',
+        description: 'Invalid Purchase Order ID',
+        variant: 'destructive',
+      });
+      navigate('/staff/purchase-orders');
+      return;
+    }
+
     try {
       setLoading(true);
       const [po, receiptsData] = await Promise.all([
-        purchaseOrdersAPI.getById(parseInt(poId)),
-        receiptsAPI.getAll({ purchase_order: parseInt(poId) }),
+        purchaseOrdersAPI.getById(id),
+        receiptsAPI.getAll({ purchase_order: id }),
       ]);
 
       setPurchaseOrder(po);
@@ -134,7 +146,23 @@ export const PurchaseOrderDetailPage: React.FC = () => {
   }
 
   if (!purchaseOrder) {
-    return null;
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Purchase Order Not Found</h2>
+            <p className="text-gray-600 mb-6">
+              The purchase order you're looking for doesn't exist or you don't have permission to view it.
+            </p>
+            <Button onClick={() => navigate('/staff/purchase-orders')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Purchase Orders
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
