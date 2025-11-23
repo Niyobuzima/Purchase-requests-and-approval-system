@@ -10,6 +10,8 @@ import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import { approvalsAPI, Approval } from '@/api/approvals';
 import type { PurchaseRequest } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
+import { ApprovalTimeline } from '@/components/approvals/ApprovalTimeline';
+import { StatusBadge } from '@/components/common/StatusBadge';
 import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 
 const RequestDetailPage: React.FC = () => {
@@ -24,6 +26,7 @@ const RequestDetailPage: React.FC = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<Approval | null>(null);
+  const [allApprovals, setAllApprovals] = useState<Approval[]>([]);
   const [processingApproval, setProcessingApproval] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -58,15 +61,22 @@ const RequestDetailPage: React.FC = () => {
         const data = await purchaseRequestsAPI.getById(requestId);
         setRequest(data);
 
-        // If user is an approver, fetch pending approvals for this request
-        if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
+        // Fetch all approvals for this request to show timeline
+        try {
           const approvals = await approvalsAPI.getByRequestId(requestId);
-          // Find the pending approval that matches the user's level
-          const userLevel = user.role === 'APPROVER_L1' ? 1 : 2;
-          const approval = approvals.find(
-            (a) => a.level === userLevel && a.status === 'PENDING'
-          );
-          setPendingApproval(approval || null);
+          setAllApprovals(approvals);
+
+          // If user is an approver, find their pending approval
+          if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
+            const userLevel = user.role === 'APPROVER_L1' ? 1 : 2;
+            const approval = approvals.find(
+              (a) => a.level === userLevel && a.status === 'PENDING'
+            );
+            setPendingApproval(approval || null);
+          }
+        } catch (err) {
+          // Approvals might not exist yet for draft requests, ignore error
+          console.log('No approvals found for this request');
         }
       } catch (error) {
         const { toastData } = handleAndFormatError(error);
@@ -297,8 +307,8 @@ const RequestDetailPage: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">Status</p>
-                <p className="text-lg font-semibold">{request.status_display || request.status}</p>
+                <p className="text-sm font-medium text-gray-600 mb-2">Status</p>
+                <StatusBadge status={request.status} />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Amount</p>
@@ -338,7 +348,7 @@ const RequestDetailPage: React.FC = () => {
         </Card>
 
         {/* Items */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Items ({request.items.length})</CardTitle>
             <CardDescription>
@@ -384,6 +394,11 @@ const RequestDetailPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Approval Timeline - Show if request has been submitted */}
+        {request.status !== 'DRAFT' && allApprovals.length > 0 && (
+          <ApprovalTimeline approvals={allApprovals} requestStatus={request.status} />
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}
