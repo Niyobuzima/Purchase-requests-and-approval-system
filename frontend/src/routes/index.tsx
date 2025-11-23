@@ -16,6 +16,9 @@ import RequestDetailPage from '../features/requests/RequestDetailPage';
 // Purchase Order Components
 import { PurchaseOrdersPage } from '../features/purchase-orders/PurchaseOrdersPage';
 
+// Receipt Components
+import { UploadReceiptPage } from '../features/receipts/UploadReceiptPage';
+
 // Dashboard Components
 import StaffDashboard from '../features/staff/StaffDashboard';
 import { ApproverDashboard } from '../features/approver/ApproverDashboard';
@@ -102,6 +105,10 @@ const router = createBrowserRouter([
       {
         path: 'purchase-orders',
         element: <PurchaseOrdersPage />,
+      },
+      {
+        path: 'purchase-orders/:poId/upload-receipt',
+        element: <UploadReceiptPage />,
       },
     ],
   },

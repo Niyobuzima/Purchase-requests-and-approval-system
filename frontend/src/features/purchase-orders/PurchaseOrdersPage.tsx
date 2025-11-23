@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
 import { POPreviewModal } from '@/components/pdf/POPreviewModal';
-import { FileText, Download, Eye, DollarSign, AlertTriangle } from 'lucide-react';
+import { FileText, Download, Eye, DollarSign, AlertTriangle, Upload } from 'lucide-react';
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
@@ -208,6 +208,15 @@ export const PurchaseOrdersPage: React.FC = () => {
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 {downloading === po.id ? 'Downloading...' : 'Download'}
+                              </Button>
+                              <Button
+                                onClick={() => navigate(`/staff/purchase-orders/${po.id}/upload-receipt`)}
+                                variant="outline"
+                                size="sm"
+                                className="bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                              >
+                                <Upload className="h-4 w-4 mr-1" />
+                                Upload Receipt
                               </Button>
                             </>
                           ) : (

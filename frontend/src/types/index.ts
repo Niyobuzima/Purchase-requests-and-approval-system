@@ -166,18 +166,51 @@ export interface PurchaseOrder {
 }
 
 // Receipt Types
+export type ReceiptValidationStatus = 'PENDING' | 'MATCHED' | 'DISCREPANCY' | 'APPROVED';
+
+export interface ReceiptDiscrepancy {
+  type: 'vendor_mismatch' | 'amount_mismatch' | 'item_count_mismatch' | 'missing_item' | 'extra_item';
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  po_value?: any;
+  receipt_value?: any;
+  difference?: number;
+  po_item?: string;
+  receipt_item?: string;
+  po_quantity?: number;
+  receipt_quantity?: number;
+  po_unit_price?: number;
+  receipt_unit_price?: number;
+}
+
 export interface Receipt {
   id: number;
-  purchase_order: PurchaseOrder;
-  document_url: string;
-  extracted_data?: any;
-  discrepancies?: any;
-  status: 'PENDING' | 'VALIDATED' | 'REJECTED';
-  uploaded_by: User;
-  validated_by?: User;
-  validated_at?: string;
+  purchase_order: number;
+  purchase_order_details?: PurchaseOrder;
+  receipt_file: string;
+  receipt_url: string;
+  uploaded_by: number;
+  uploaded_by_name?: string;
+  uploaded_at: string;
+  validation_status: ReceiptValidationStatus;
+  validation_status_display: string;
+  extracted_receipt_data?: ExtractedDocumentData | null;
+  discrepancies?: ReceiptDiscrepancy[] | null;
+  finance_comments?: string;
+  approved_by?: number | null;
+  approved_by_name?: string | null;
+  approved_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CreateReceiptData {
+  purchase_order: number;
+  receipt_file: File;
+}
+
+export interface ReceiptApprovalData {
+  finance_comments?: string;
 }
 
 // Analytics Types
