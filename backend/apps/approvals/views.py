@@ -22,13 +22,10 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
         - L1 Approver: Only L1 pending approvals
         - L2 Approver: Only L2 pending approvals
         - When filtered by request ID: Return ALL approvals for that request (for timeline view)
-        - Staff/Admin: Can view all approvals when filtered by request ID
         """
         user = self.request.user
         request_id = self.request.query_params.get('request', None)
 
-        # If filtering by request ID, return all approvals for that request
-        # This allows staff to see the full approval timeline
         if request_id is not None:
             queryset = Approval.objects.filter(
                 request_id=request_id
