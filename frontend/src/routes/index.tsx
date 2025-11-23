@@ -15,17 +15,9 @@ import RequestDetailPage from '../features/requests/RequestDetailPage';
 
 // Dashboard Components
 import StaffDashboard from '../features/staff/StaffDashboard';
+import { ApproverDashboard } from '../features/approver/ApproverDashboard';
 
 // Placeholder components for role-based dashboards
-
-const ApproverDashboard: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Approver Dashboard</h1>
-      <p className="text-gray-600">Coming soon - Review and approve purchase requests</p>
-    </div>
-  </div>
-);
 
 const FinanceDashboard: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -117,6 +109,10 @@ const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <ApproverDashboard />,
+      },
+      {
+        path: 'requests/:id',
+        element: <RequestDetailPage />,
       },
     ],
   },

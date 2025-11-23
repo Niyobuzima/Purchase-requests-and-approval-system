@@ -224,9 +224,21 @@ class SubmitRequestSerializer(serializers.Serializer):
         return attrs
 
     def save(self):
-        """Submit the request"""
+        """Submit the request and create L1 approval"""
+        from apps.approvals.models import Approval
+
         request_obj = self.context.get('request_obj')
         request_obj.status = PurchaseRequest.Status.PENDING
         request_obj.submitted_at = timezone.now()
         request_obj.save()
+
+        # Create Level 1 approval record
+        Approval.objects.get_or_create(
+            request=request_obj,
+            level=Approval.Level.LEVEL_1,
+            defaults={
+                'status': Approval.Status.PENDING,
+            }
+        )
+
         return request_obj
