@@ -48,9 +48,21 @@ export const ReceiptValidationPage: React.FC = () => {
       return;
     }
 
+    // Validate receiptId is a valid numeric string
+    const id = parseInt(receiptId, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      toast({
+        title: 'Error',
+        description: 'Invalid receipt ID',
+        variant: 'destructive',
+      });
+      navigate('/staff/purchase-orders');
+      return;
+    }
+
     try {
       setLoading(true);
-      const receiptData = await receiptsAPI.getById(parseInt(receiptId));
+      const receiptData = await receiptsAPI.getById(id);
       setReceipt(receiptData);
 
       // Load PO details for comparison
@@ -322,15 +334,21 @@ export const ReceiptValidationPage: React.FC = () => {
                     Items ({receipt.extracted_receipt_data.items?.length || 0})
                   </Label>
                   <div className="mt-2 space-y-2">
-                    {receipt.extracted_receipt_data.items?.map((item, idx) => (
-                      <div key={idx} className="p-2 bg-gray-50 rounded">
-                        <p className="text-sm font-medium">{item.description}</p>
-                        <p className="text-xs text-gray-600">
-                          Qty: {item.quantity} × ${Number(item.unit_price).toFixed(2)} = $
-                          {(item.quantity * item.unit_price).toFixed(2)}
-                        </p>
-                      </div>
-                    ))}
+                    {receipt.extracted_receipt_data.items?.map((item, idx) => {
+                      const qty = Number(item.quantity ?? 0) || 0;
+                      const price = Number(item.unit_price ?? 0) || 0;
+                      const total = qty * price;
+
+                      return (
+                        <div key={idx} className="p-2 bg-gray-50 rounded">
+                          <p className="text-sm font-medium">{item.description}</p>
+                          <p className="text-xs text-gray-600">
+                            Qty: {qty.toFixed(2)} × ${price.toFixed(2)} = $
+                            {total.toFixed(2)}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </>

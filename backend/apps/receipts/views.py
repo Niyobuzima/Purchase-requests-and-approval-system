@@ -92,6 +92,125 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             logger.error(f"Error processing receipt {receipt.id}: {e}")
             # Don't fail the upload, just log the error
 
+    def _validate_receipt_against_po(self, receipt, po, receipt_data):
+        """
+        Core validation logic comparing receipt data against PO.
+        
+        Returns:
+            tuple: (validation_status, discrepancies_list)
+        """
+        discrepancies = []
+
+        # 1. Vendor name check (case-insensitive substring match)
+        po_vendor = (po.request.vendor_name or '').lower()
+        receipt_vendor = (receipt_data.get('vendor_name') or '').lower()
+
+        if po_vendor and receipt_vendor:
+            if receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
+                discrepancies.append({
+                    'type': 'vendor_mismatch',
+                    'severity': 'medium',
+                    'message': f"Vendor name mismatch",
+                    'po_value': po.request.vendor_name,
+                    'receipt_value': receipt_data.get('vendor_name'),
+                })
+
+        # 2. Total amount check (±5% tolerance)
+        po_total = float(po.request.total_amount)
+        receipt_total = receipt_data.get('total_amount')
+
+        if receipt_total:
+            # Validate and convert receipt_total safely
+            try:
+                # Strip whitespace and convert to float
+                receipt_total_str = str(receipt_total).strip() if receipt_total else ''
+                if not receipt_total_str:
+                    raise ValueError("Empty total amount")
+                
+                receipt_total_float = float(receipt_total_str)
+                
+                # Check if within tolerance
+                tolerance = 0.05  # 5%
+                lower_bound = po_total * (1 - tolerance)
+                upper_bound = po_total * (1 + tolerance)
+
+                if not (lower_bound <= receipt_total_float <= upper_bound):
+                    difference = receipt_total_float - po_total
+                    discrepancies.append({
+                        'type': 'amount_mismatch',
+                        'severity': 'high',
+                        'message': f"Total amount outside 5% tolerance",
+                        'po_value': po_total,
+                        'receipt_value': receipt_total_float,
+                        'difference': difference,
+                    })
+            except (ValueError, TypeError) as e:
+                # Invalid numeric value in receipt total
+                discrepancies.append({
+                    'type': 'invalid_amount',
+                    'severity': 'high',
+                    'message': f"Invalid total amount format in receipt: '{receipt_total}'",
+                    'po_value': po_total,
+                    'receipt_value': str(receipt_total),
+                    'error': str(e),
+                })
+
+        # 3. Item count check
+        po_items = po.request.items.all()
+        receipt_items = receipt_data.get('items', [])
+
+        if len(receipt_items) != len(po_items):
+            discrepancies.append({
+                'type': 'item_count_mismatch',
+                'severity': 'medium',
+                'message': f"Item count mismatch: PO has {len(po_items)} items, Receipt has {len(receipt_items)} items",
+                'po_value': len(po_items),
+                'receipt_value': len(receipt_items),
+            })
+
+        # 4. Item matching
+        po_descriptions = [item.description.lower() for item in po_items]
+        receipt_descriptions = [item.get('description', '').lower() for item in receipt_items]
+
+        # Check for missing items from receipt
+        for po_item in po_items:
+            po_desc = po_item.description.lower()
+            matched = any(
+                po_desc in receipt_desc or receipt_desc in po_desc
+                for receipt_desc in receipt_descriptions
+            )
+            if not matched:
+                discrepancies.append({
+                    'type': 'missing_item',
+                    'severity': 'medium',
+                    'message': f"PO item not found in receipt: {po_item.description}",
+                    'po_item': po_item.description,
+                    'po_quantity': float(po_item.quantity),
+                    'po_unit_price': float(po_item.unit_price)
+                })
+
+        # Check for extra items in receipt
+        for receipt_item in receipt_items:
+            receipt_desc = receipt_item.get('description', '').lower()
+            matched = any(
+                receipt_desc in po_desc or po_desc in receipt_desc
+                for po_desc in po_descriptions
+            )
+            if not matched:
+                discrepancies.append({
+                    'type': 'extra_item',
+                    'severity': 'low',
+                    'message': f"Extra item in receipt not in PO: {receipt_item.get('description')}",
+                    'receipt_item': receipt_item.get('description'),
+                    'receipt_quantity': receipt_item.get('quantity'),
+                    'receipt_unit_price': receipt_item.get('unit_price')
+                })
+
+        # Determine validation status
+        validation_status = 'DISCREPANCY' if discrepancies else 'MATCHED'
+        
+        return validation_status, discrepancies
+
     def _auto_validate_receipt(self, receipt):
         """
         Automatically validate receipt against PO after AI extraction
@@ -105,83 +224,16 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             po = receipt.purchase_order
             receipt_data = receipt.extracted_receipt_data
 
-            discrepancies = []
+            # Use common validation logic
+            validation_status, discrepancies = self._validate_receipt_against_po(
+                receipt, po, receipt_data
+            )
 
-            # 1. Vendor name check (case-insensitive substring match)
-            po_vendor = (po.request.vendor_name or '').lower()
-            receipt_vendor = (receipt_data.get('vendor_name') or '').lower()
-
-            if po_vendor and receipt_vendor:
-                if receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
-                    discrepancies.append({
-                        'type': 'vendor_mismatch',
-                        'severity': 'medium',
-                        'message': f"Vendor name mismatch",
-                        'po_value': po.request.vendor_name,
-                        'receipt_value': receipt_data.get('vendor_name'),
-                    })
-
-            # 2. Total amount check (±5% tolerance)
-            po_total = float(po.request.total_amount)
-            receipt_total = receipt_data.get('total_amount')
-
-            if receipt_total:
-                tolerance = 0.05  # 5%
-                lower_bound = po_total * (1 - tolerance)
-                upper_bound = po_total * (1 + tolerance)
-
-                if not (lower_bound <= float(receipt_total) <= upper_bound):
-                    difference = float(receipt_total) - po_total
-                    discrepancies.append({
-                        'type': 'amount_mismatch',
-                        'severity': 'high',
-                        'message': f"Total amount outside 5% tolerance",
-                        'po_value': po_total,
-                        'receipt_value': float(receipt_total),
-                        'difference': difference,
-                    })
-
-            # 3. Item count check
-            po_items = po.request.items.all()
-            receipt_items = receipt_data.get('items', [])
-
-            if len(receipt_items) != len(po_items):
-                discrepancies.append({
-                    'type': 'item_count_mismatch',
-                    'severity': 'medium',
-                    'message': f"Item count mismatch: PO has {len(po_items)} items, Receipt has {len(receipt_items)} items",
-                    'po_value': len(po_items),
-                    'receipt_value': len(receipt_items),
-                })
-
-            # 4. Item matching (check if each PO item exists in receipt)
-            for po_item in po_items:
-                found = False
-                for receipt_item in receipt_items:
-                    # Simple substring match on description
-                    po_desc = po_item.description.lower()
-                    receipt_desc = receipt_item.get('description', '').lower()
-                    if po_desc in receipt_desc or receipt_desc in po_desc:
-                        found = True
-                        break
-
-                if not found:
-                    discrepancies.append({
-                        'type': 'missing_item',
-                        'severity': 'medium',
-                        'message': f"Item from PO not found in receipt: {po_item.description}",
-                        'po_item': po_item.description,
-                    })
-
-            # Set validation status
-            if discrepancies:
-                receipt.validation_status = 'DISCREPANCY'
-                receipt.discrepancies = discrepancies
-            else:
-                receipt.validation_status = 'MATCHED'
-                receipt.discrepancies = []
-
+            # Update receipt with validation results
+            receipt.validation_status = validation_status
+            receipt.discrepancies = discrepancies
             receipt.save(update_fields=['validation_status', 'discrepancies'])
+            
             logger.info(f"Validation complete for receipt {receipt.id}: {receipt.validation_status}")
 
         except Exception as e:
@@ -202,112 +254,20 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get PO data
+        # Get PO and receipt data
         po = receipt.purchase_order
-        po_items = list(po.request.items.all())
-
-        # Extract receipt data
         receipt_data = receipt.extracted_receipt_data
-        receipt_items = receipt_data.get('items', [])
-        receipt_total = receipt_data.get('total_amount')
-        receipt_vendor = receipt_data.get('vendor_name', '').lower()
 
-        # Get PO data
-        po_vendor = (po.request.vendor_name or '').lower()
-        po_total = float(po.request.total_amount)
-
-        # Initialize discrepancies list
-        discrepancies = []
-
-        # 1. Vendor Name Check
-        if receipt_vendor and po_vendor:
-            # Simple substring match (case-insensitive)
-            if receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
-                discrepancies.append({
-                    'type': 'vendor_mismatch',
-                    'severity': 'medium',
-                    'message': f"Vendor name mismatch: PO has '{po.request.vendor_name}', Receipt has '{receipt_data.get('vendor_name')}'",
-                    'po_value': po.request.vendor_name,
-                    'receipt_value': receipt_data.get('vendor_name')
-                })
-
-        # 2. Total Amount Check (within �5% tolerance)
-        if receipt_total is not None:
-            tolerance = 0.05  # 5%
-            lower_bound = po_total * (1 - tolerance)
-            upper_bound = po_total * (1 + tolerance)
-
-            if not (lower_bound <= float(receipt_total) <= upper_bound):
-                discrepancies.append({
-                    'type': 'amount_mismatch',
-                    'severity': 'high',
-                    'message': f"Total amount outside 5% tolerance: PO total ${po_total:.2f}, Receipt total ${receipt_total:.2f}",
-                    'po_value': po_total,
-                    'receipt_value': float(receipt_total),
-                    'difference': abs(float(receipt_total) - po_total)
-                })
-
-        # 3. Item Count Check
-        if len(receipt_items) != len(po_items):
-            discrepancies.append({
-                'type': 'item_count_mismatch',
-                'severity': 'medium',
-                'message': f"Item count mismatch: PO has {len(po_items)} items, Receipt has {len(receipt_items)} items",
-                'po_value': len(po_items),
-                'receipt_value': len(receipt_items)
-            })
-
-        # 4. Item-by-Item Comparison (simple description matching)
-        po_descriptions = [item.description.lower() for item in po_items]
-        receipt_descriptions = [item.get('description', '').lower() for item in receipt_items]
-
-        # Check for missing items from receipt
-        for po_item in po_items:
-            po_desc = po_item.description.lower()
-            # Check if any receipt item matches (even partially)
-            matched = any(
-                po_desc in receipt_desc or receipt_desc in po_desc
-                for receipt_desc in receipt_descriptions
-            )
-            if not matched:
-                discrepancies.append({
-                    'type': 'missing_item',
-                    'severity': 'medium',
-                    'message': f"PO item not found in receipt: {po_item.description}",
-                    'po_item': po_item.description,
-                    'po_quantity': float(po_item.quantity),
-                    'po_unit_price': float(po_item.unit_price)
-                })
-
-        # Check for extra items in receipt
-        for receipt_item in receipt_items:
-            receipt_desc = receipt_item.get('description', '').lower()
-            # Check if any PO item matches (even partially)
-            matched = any(
-                receipt_desc in po_desc or po_desc in receipt_desc
-                for po_desc in po_descriptions
-            )
-            if not matched:
-                discrepancies.append({
-                    'type': 'extra_item',
-                    'severity': 'low',
-                    'message': f"Extra item in receipt not in PO: {receipt_item.get('description')}",
-                    'receipt_item': receipt_item.get('description'),
-                    'receipt_quantity': receipt_item.get('quantity'),
-                    'receipt_unit_price': receipt_item.get('unit_price')
-                })
-
-        # Determine validation status
-        if not discrepancies:
-            validation_status = 'MATCHED'
-        else:
-            validation_status = 'DISCREPANCY'
+        # Use common validation logic
+        validation_status, discrepancies = self._validate_receipt_against_po(
+            receipt, po, receipt_data
+        )
 
         # Save validation results
         with transaction.atomic():
             receipt.discrepancies = discrepancies
             receipt.validation_status = validation_status
-            receipt.save(update_fields=['discrepancies', 'validation_status'])
+            receipt.save(update_fields=['validation_status', 'discrepancies'])
 
         return Response({
             'validation_status': validation_status,
