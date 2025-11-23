@@ -15,6 +15,7 @@ import {
   ChevronDown,
   FileText,
   LayoutDashboard,
+  ShoppingCart,
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -91,14 +92,24 @@ const Navbar: React.FC = () => {
                 </Button>
 
                 {user.role === 'STAFF' && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate('/staff/requests')}
-                    className="text-gray-700 hover:text-gray-900"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    My Requests
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/staff/requests')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      My Requests
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/staff/purchase-orders')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Purchase Orders
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

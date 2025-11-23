@@ -1,5 +1,5 @@
 import api from './axios';
-import type { PurchaseRequest } from '@/types';
+import type { PurchaseRequest, PaginatedResponse } from '@/types';
 
 export interface PurchaseOrder {
   id: number;
@@ -21,8 +21,9 @@ export interface PurchaseOrderDetail extends PurchaseOrder {
 export const purchaseOrdersAPI = {
   // Get all purchase orders
   getAll: async (): Promise<PurchaseOrder[]> => {
-    const response = await api.get('/purchase-orders/');
-    return response.data;
+    const response = await api.get<PaginatedResponse<PurchaseOrder>>('/purchase-orders/');
+    // Handle paginated response - return results array
+    return response.data.results || [];
   },
 
   // Get specific purchase order

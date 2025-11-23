@@ -13,7 +13,8 @@ import type { PurchaseRequest } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { ApprovalTimeline } from '@/components/approvals/ApprovalTimeline';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download } from 'lucide-react';
+import { POPreviewModal } from '@/components/pdf/POPreviewModal';
+import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download, Eye } from 'lucide-react';
 
 const RequestDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +35,7 @@ const RequestDetailPage: React.FC = () => {
   const [rejectComments, setRejectComments] = useState('');
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
   const [downloadingPO, setDownloadingPO] = useState(false);
+  const [showPOPreview, setShowPOPreview] = useState(false);
 
   // Determine back path based on user role
   const getBackPath = () => {
@@ -475,14 +477,24 @@ const RequestDetailPage: React.FC = () => {
                           <CheckCircle2 className="h-3 w-3 mr-1" />
                           PDF Ready
                         </div>
-                        <Button
-                          onClick={handleDownloadPO}
-                          disabled={downloadingPO}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          {downloadingPO ? 'Downloading...' : 'Download PDF'}
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={() => setShowPOPreview(true)}
+                            variant="outline"
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Preview PDF
+                          </Button>
+                          <Button
+                            onClick={handleDownloadPO}
+                            disabled={downloadingPO}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            {downloadingPO ? 'Downloading...' : 'Download'}
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <>
@@ -682,6 +694,17 @@ const RequestDetailPage: React.FC = () => {
             </Card>
           </div>
         </>
+      )}
+
+      {/* PDF Preview Modal */}
+      {purchaseOrder && purchaseOrder.pdf_file && showPOPreview && (
+        <POPreviewModal
+          isOpen={showPOPreview}
+          onClose={() => setShowPOPreview(false)}
+          pdfUrl={purchaseOrder.pdf_file}
+          poNumber={purchaseOrder.po_number}
+          onDownload={handleDownloadPO}
+        />
       )}
     </div>
   );

@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { purchaseOrdersAPI, PurchaseOrder } from '../../api/purchaseOrders';
-import { useAuth } from '../../hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
-import { FileText, Download, Eye, DollarSign, CheckCircle, AlertTriangle } from 'lucide-react';
+import { POPreviewModal } from '@/components/pdf/POPreviewModal';
+import { FileText, Download, Eye, DollarSign, AlertTriangle } from 'lucide-react';
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<number | null>(null);
-  const { user } = useAuth();
+  const [previewPO, setPreviewPO] = useState<PurchaseOrder | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -61,6 +61,28 @@ export const PurchaseOrdersPage: React.FC = () => {
       });
     } finally {
       setDownloading(null);
+    }
+  };
+
+  const handlePreview = (po: PurchaseOrder) => {
+    if (!po.pdf_file) {
+      toast({
+        title: 'Error',
+        description: 'PDF file not available',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setPreviewPO(po);
+  };
+
+  const handleClosePreview = () => {
+    setPreviewPO(null);
+  };
+
+  const handleDownloadFromPreview = () => {
+    if (previewPO) {
+      handleDownload(previewPO);
     }
   };
 
@@ -168,16 +190,26 @@ export const PurchaseOrdersPage: React.FC = () => {
                             View Request
                           </Button>
                           {po.pdf_file ? (
-                            <Button
-                              onClick={() => handleDownload(po)}
-                              disabled={downloading === po.id}
-                              variant="default"
-                              size="sm"
-                              className="relative"
-                            >
-                              <Download className="h-4 w-4 mr-1" />
-                              {downloading === po.id ? 'Downloading...' : 'Download PDF'}
-                            </Button>
+                            <>
+                              <Button
+                                onClick={() => handlePreview(po)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Preview
+                              </Button>
+                              <Button
+                                onClick={() => handleDownload(po)}
+                                disabled={downloading === po.id}
+                                variant="default"
+                                size="sm"
+                                className="relative"
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                {downloading === po.id ? 'Downloading...' : 'Download'}
+                              </Button>
+                            </>
                           ) : (
                             <div className="flex items-center space-x-2">
                               <div className="flex items-center text-xs text-yellow-600 px-3 py-1 bg-yellow-50 rounded border border-yellow-200">
@@ -194,6 +226,17 @@ export const PurchaseOrdersPage: React.FC = () => {
               </Table>
             </CardContent>
           </Card>
+        )}
+
+        {/* PDF Preview Modal */}
+        {previewPO && previewPO.pdf_file && (
+          <POPreviewModal
+            isOpen={!!previewPO}
+            onClose={handleClosePreview}
+            pdfUrl={previewPO.pdf_file}
+            poNumber={previewPO.po_number}
+            onDownload={handleDownloadFromPreview}
+          />
         )}
       </div>
     </div>
