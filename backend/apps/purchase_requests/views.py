@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.cache import cache
+import tempfile
+import os
 from apps.purchase_requests.models import PurchaseRequest, RequestItem
 from apps.purchase_requests.serializers import (
     PurchaseRequestSerializer,
@@ -271,23 +273,37 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Store the file content temporarily for AI processing (before saving to Cloudinary)
-        # Read the file content before it's closed
-        document_file.seek(0)  # Reset file pointer to beginning
+        # Store file temporarily for AI processing (before/during Cloudinary upload)
+        # Write to a temporary file instead of caching in memory
+        document_file.seek(0)
         file_content = document_file.read()
         file_name = document_file.name
-
-        # Save file to Cloudinary (for storage/reference)
-        document_file.seek(0)  # Reset again for Cloudinary upload
-        instance.document_file = document_file
-        instance.save()
-
-        # Cache the file content for 5 minutes (enough time for immediate AI processing)
-        cache_key = f'upload_file_{instance.id}'
-        cache.set(cache_key, {
-            'content': file_content,
-            'name': file_name
-        }, timeout=300)  # 5 minutes
+        
+        # Create temporary file
+        temp_fd, temp_path = tempfile.mkstemp(suffix=os.path.splitext(file_name)[1])
+        try:
+            # Write content to temp file
+            with os.fdopen(temp_fd, 'wb') as temp_file:
+                temp_file.write(file_content)
+            
+            # Save file to Cloudinary (for storage/reference)
+            document_file.seek(0)
+            instance.document_file = document_file
+            instance.save()
+            
+            # Cache only the temp file path (very small) for 5 minutes
+            cache_key = f'upload_file_{instance.id}'
+            cache.set(cache_key, {
+                'temp_path': temp_path,
+                'name': file_name
+            }, timeout=300)  # 5 minutes
+        except Exception as e:
+            # Clean up temp file if something goes wrong
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+            raise e
 
         return Response({
             'message': 'Document uploaded successfully.',
@@ -318,26 +334,39 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            # Try to get cached file content first (uploaded within last 5 minutes)
+            # Try to get cached temp file path first (uploaded within last 5 minutes)
             cache_key = f'upload_file_{instance.id}'
             cached_file = cache.get(cache_key)
 
             from utils.ai_processor import get_document_processor
             processor = get_document_processor()
 
-            if cached_file:
-                # Use cached file content (bypasses Cloudinary download completely)
-                print("Using cached file content for AI processing")
-                extracted_data = processor.process_document_from_bytes(
-                    cached_file['content'],
-                    cached_file['name']
-                )
-                # Clear cache after processing
-                cache.delete(cache_key)
+            if cached_file and cached_file.get('temp_path'):
+                # Use temporary file (bypasses Cloudinary download)
+                temp_path = cached_file['temp_path']
+                print(f"Using temporary file for AI processing: {temp_path}")
+                
+                try:
+                    # Read from temp file
+                    with open(temp_path, 'rb') as temp_file:
+                        file_content = temp_file.read()
+                    
+                    extracted_data = processor.process_document_from_bytes(
+                        file_content,
+                        cached_file['name']
+                    )
+                finally:
+                    # Clean up: delete temp file and cache entry
+                    try:
+                        os.unlink(temp_path)
+                    except Exception as cleanup_error:
+                        print(f"Warning: Could not delete temp file {temp_path}: {cleanup_error}")
+                    cache.delete(cache_key)
             else:
-                # Fallback: try to download from Cloudinary
-                print("No cached file, attempting to download from Cloudinary")
+                # Fallback: download from Cloudinary
+                print("No cached temp file, attempting to download from Cloudinary")
                 extracted_data = processor.process_document_from_file(instance.document_file)
+                cache.delete(cache_key)
 
             # Save extracted data
             instance.extracted_data = extracted_data

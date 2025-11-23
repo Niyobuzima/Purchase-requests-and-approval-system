@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { authAPI } from '../api/auth';
 import type { User, LoginCredentials, RegisterData } from '../types';
@@ -27,6 +27,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const logout = useCallback(async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+
+    // Call backend to blacklist token
+    if (refreshToken) {
+      try {
+        await authAPI.logout(refreshToken);
+      } catch (error) {
+        // Even if backend call fails, still logout locally
+        console.error('Logout error:', error);
+      }
+    }
+
+    // Clear local storage and state
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setUser(null);
+  }, []);
+
   useEffect(() => {
     // Check if user is logged in on mount
     const initAuth = async () => {
@@ -49,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-  }, []);
+  }, [logout]);
 
   const login = async (email: string, password: string): Promise<User> => {
     const credentials: LoginCredentials = { email, password };
@@ -72,25 +91,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(user);
 
     return user;
-  };
-
-  const logout = async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
-
-    // Call backend to blacklist token
-    if (refreshToken) {
-      try {
-        await authAPI.logout(refreshToken);
-      } catch (error) {
-        // Even if backend call fails, still logout locally
-        console.error('Logout error:', error);
-      }
-    }
-
-    // Clear local storage and state
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    setUser(null);
   };
 
   const value: AuthContextType = {

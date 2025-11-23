@@ -116,7 +116,10 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                     min="0.01"
                     placeholder="1"
                     value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      setFormData({ ...formData, quantity: isNaN(value) ? 0 : value });
+                    }}
                     required
                   />
                 </div>
@@ -142,7 +145,10 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                     min="0.01"
                     placeholder="0.00"
                     value={formData.unit_price}
-                    onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      setFormData({ ...formData, unit_price: isNaN(value) ? 0 : value });
+                    }}
                     required
                   />
                 </div>

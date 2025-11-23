@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, File, X, Loader2 } from 'lucide-react';
+import { Upload, File, X } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -55,11 +54,11 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return true;
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = useCallback((file: File) => {
     if (validateFile(file)) {
       onFileSelect(file);
     }
-  };
+  }, [maxSize, accept, onFileSelect]);
 
   const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -83,7 +82,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     if (files && files.length > 0) {
       handleFile(files[0]);
     }
-  }, [disabled]);
+  }, [disabled, handleFile]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();

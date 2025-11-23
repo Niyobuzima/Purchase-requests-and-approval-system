@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
+import logging
 from apps.users.serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -12,6 +13,8 @@ from apps.users.serializers import (
 )
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -130,13 +133,15 @@ class LogoutView(generics.GenericAPIView):
                 {'message': 'Logout successful'},
                 status=status.HTTP_205_RESET_CONTENT
             )
-        except TokenError as e:
+        except TokenError:
             return Response(
                 {'error': 'Invalid or expired token'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            # Log the full exception for debugging
+            logger.exception('Unexpected error during logout')
             return Response(
-                {'error': 'Logout failed'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Logout failed due to an unexpected error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

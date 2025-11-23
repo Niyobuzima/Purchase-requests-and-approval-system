@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
+import { calculateSubtotal, calculateTotal } from '@/utils/calculateSubtotal';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { RequestItem, CreatePurchaseRequestData } from '@/types';
 import { Plus, Trash2, DollarSign } from 'lucide-react';
@@ -69,16 +70,9 @@ const CreateRequestPage: React.FC = () => {
     setItems(updatedItems);
   };
 
-  // Calculate subtotal for an item
-  const calculateSubtotal = (item: typeof items[0]): number => {
-    const qty = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
-    const price = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
-    return qty * price || 0;
-  };
-
-  // Calculate total amount
-  const calculateTotal = (): number => {
-    return items.reduce((total, item) => total + calculateSubtotal(item), 0);
+  // Calculate total amount using shared utility
+  const getTotalAmount = (): number => {
+    return calculateTotal(items);
   };
 
   // Validate form
@@ -361,7 +355,7 @@ const CreateRequestPage: React.FC = () => {
                 <span className="text-lg font-semibold">Total:</span>
                 <div className="flex items-center text-2xl font-bold text-green-600">
                   <DollarSign className="h-6 w-6" />
-                  {calculateTotal().toFixed(2)}
+                  {getTotalAmount().toFixed(2)}
                 </div>
               </div>
             </div>

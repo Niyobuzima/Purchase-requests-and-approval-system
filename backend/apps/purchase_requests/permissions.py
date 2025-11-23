@@ -1,4 +1,7 @@
 from rest_framework import permissions
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class IsStaffUser(permissions.BasePermission):
@@ -8,7 +11,7 @@ class IsStaffUser(permissions.BasePermission):
         return (
             request.user and
             request.user.is_authenticated and
-            request.user.role == 'STAFF'
+            request.user.role == User.Role.STAFF
         )
 
 
@@ -35,6 +38,6 @@ class CanCreatePurchaseRequest(permissions.BasePermission):
             return (
                 request.user and
                 request.user.is_authenticated and
-                request.user.role == 'STAFF'
+                request.user.role == User.Role.STAFF
             )
         return request.user and request.user.is_authenticated

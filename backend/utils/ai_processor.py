@@ -229,22 +229,40 @@ Rules:
 
 Analyze the uploaded document carefully and extract all invoice information."""
 
+            # Determine file type from filename
+            file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
+            image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']
+            is_image = file_extension in image_extensions
+
+            print(f"File type detected: {'image' if is_image else 'document'} (.{file_extension})")
+
             try:
+                # Build content array based on file type
+                content = [
+                    {
+                        "type": "input_text",
+                        "text": prompt
+                    }
+                ]
+
+                # Use input_image for images, input_file for PDFs and documents
+                if is_image:
+                    content.append({
+                        "type": "input_image",
+                        "file_id": file_object.id
+                    })
+                else:
+                    content.append({
+                        "type": "input_file",
+                        "file_id": file_object.id
+                    })
+
                 response = self.client.responses.create(
                     model=model,
                     input=[{
                         "type": "message",
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": prompt
-                            },
-                            {
-                                "type": "input_file",
-                                "file_id": file_object.id
-                            }
-                        ]
+                        "content": content
                     }],
                     text={"format": {"type": "json_object"}},
                 )

@@ -40,9 +40,10 @@ const RequestsListPage: React.FC = () => {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchRequests();
-  }, [statusFilter]);
+  }, [statusFilter]); // searchTerm intentionally omitted - fetch triggered on form submit
 
   // Handle search
   const handleSearch = (e: React.FormEvent) => {

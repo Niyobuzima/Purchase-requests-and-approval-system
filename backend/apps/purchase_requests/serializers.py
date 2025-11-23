@@ -129,7 +129,12 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
 
         # Set requester from context if not provided
         if requester_id is None:
-            requester = self.context['request'].user
+            request = self.context.get('request')
+            if request is None:
+                raise serializers.ValidationError(
+                    'Request context is required when requester_id is not provided.'
+                )
+            requester = request.user
             validated_data['requester'] = requester
 
         # Create purchase request

@@ -140,7 +140,7 @@ const Navbar: React.FC = () => {
                         <CardHeader className="pb-3">
                           <div className="flex items-center space-x-3">
                             <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
-                              {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
+                              {user.first_name?.charAt(0) || ''}{user.last_name?.charAt(0) || ''}
                             </div>
                             <div className="flex-1">
                               <CardTitle className="text-base">
