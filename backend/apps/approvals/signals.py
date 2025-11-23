@@ -23,7 +23,7 @@ def handle_approval_status_change(sender, instance, created, **kwargs):
             # L1 approved - update request status and create L2 approval
             request.status = PurchaseRequest.Status.APPROVED_L1
             request.approved_l1_by = instance.approver
-            request.approved_l1_at = instance.approved_at
+            request.approved_l1_at = instance.processed_at
             request.save()
 
             # Create L2 approval if it doesn't exist
@@ -39,13 +39,13 @@ def handle_approval_status_change(sender, instance, created, **kwargs):
             # L2 approved - fully approve the request
             request.status = PurchaseRequest.Status.APPROVED
             request.approved_l2_by = instance.approver
-            request.approved_l2_at = instance.approved_at
+            request.approved_l2_at = instance.processed_at
             request.save()
 
     elif instance.status == Approval.Status.REJECTED:
         # Rejected - update request status
         request.status = PurchaseRequest.Status.REJECTED
         request.rejected_by = instance.approver
-        request.rejected_at = instance.approved_at  # We use approved_at for rejection time
+        request.rejected_at = instance.processed_at
         request.rejection_reason = instance.comments
         request.save()

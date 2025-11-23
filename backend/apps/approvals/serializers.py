@@ -33,14 +33,14 @@ class ApprovalSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'comments',
-            'approved_at',
+            'processed_at',
             'created_at',
             'updated_at',
         ]
         read_only_fields = [
             'id',
             'approver',
-            'approved_at',
+            'processed_at',
             'created_at',
             'updated_at',
         ]

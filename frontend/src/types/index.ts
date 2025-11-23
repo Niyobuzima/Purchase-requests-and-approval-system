@@ -143,7 +143,7 @@ export interface Approval {
   approver?: User;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   comments?: string;
-  approved_at?: string;
+  processed_at?: string;
   created_at: string;
   updated_at: string;
 }

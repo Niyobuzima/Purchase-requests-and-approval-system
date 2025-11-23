@@ -34,7 +34,7 @@ class Approval(models.Model):
         default=Status.PENDING,
     )
     comments = models.TextField(blank=True)
-    approved_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -66,7 +66,7 @@ class Approval(models.Model):
         """Approve this approval record"""
         self.status = self.Status.APPROVED
         self.approver = approver
-        self.approved_at = timezone.now()
+        self.processed_at = timezone.now()
         self.save()
 
     def reject(self, approver, comments=''):
@@ -74,5 +74,5 @@ class Approval(models.Model):
         self.status = self.Status.REJECTED
         self.approver = approver
         self.comments = comments
-        self.approved_at = timezone.now()
+        self.processed_at = timezone.now()
         self.save()

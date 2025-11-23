@@ -20,7 +20,7 @@ export interface Approval {
   status: string;
   status_display: string;
   comments: string;
-  approved_at: string | null;
+  processed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,8 +49,8 @@ export const approvalsAPI = {
   },
 
   // Approve an approval
-  approve: async (id: number, data?: ApprovalAction): Promise<Approval> => {
-    const response = await api.post(`/approvals/${id}/approve/`, data || {});
+  approve: async (id: number): Promise<Approval> => {
+    const response = await api.post(`/approvals/${id}/approve/`);
     return response.data;
   },
 
