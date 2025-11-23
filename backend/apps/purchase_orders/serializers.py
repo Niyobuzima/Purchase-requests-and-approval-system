@@ -1,0 +1,84 @@
+from rest_framework import serializers
+from apps.purchase_orders.models import PurchaseOrder
+from apps.purchase_requests.serializers import PurchaseRequestSerializer
+
+
+class PurchaseOrderSerializer(serializers.ModelSerializer):
+    """Serializer for Purchase Order model"""
+
+    request_details = PurchaseRequestSerializer(source='request', read_only=True)
+    request_title = serializers.CharField(source='request.title', read_only=True)
+    request_total = serializers.DecimalField(
+        source='request.total_amount',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    requester_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseOrder
+        fields = [
+            'id',
+            'request',
+            'request_details',
+            'request_title',
+            'request_total',
+            'requester_name',
+            'po_number',
+            'generated_at',
+            'pdf_file',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'po_number',
+            'generated_at',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_requester_name(self, obj):
+        """Get requester's full name"""
+        if obj.request and obj.request.requester:
+            user = obj.request.requester
+            if user.first_name and user.last_name:
+                return f"{user.first_name} {user.last_name}"
+            return user.username
+        return "Unknown"
+
+
+class PurchaseOrderListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for list views"""
+
+    request_title = serializers.CharField(source='request.title', read_only=True)
+    request_total = serializers.DecimalField(
+        source='request.total_amount',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    requester_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseOrder
+        fields = [
+            'id',
+            'request',
+            'request_title',
+            'request_total',
+            'requester_name',
+            'po_number',
+            'generated_at',
+            'pdf_file',
+        ]
+
+    def get_requester_name(self, obj):
+        """Get requester's full name"""
+        if obj.request and obj.request.requester:
+            user = obj.request.requester
+            if user.first_name and user.last_name:
+                return f"{user.first_name} {user.last_name}"
+            return user.username
+        return "Unknown"
