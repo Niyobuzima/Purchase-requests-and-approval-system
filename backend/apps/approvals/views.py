@@ -21,9 +21,21 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
         Return approvals based on user's role:
         - L1 Approver: Only L1 pending approvals
         - L2 Approver: Only L2 pending approvals
-        - Can be filtered by request ID via query params
+        - When filtered by request ID: Return ALL approvals for that request (for timeline view)
+        - Staff/Admin: Can view all approvals when filtered by request ID
         """
         user = self.request.user
+        request_id = self.request.query_params.get('request', None)
+
+        # If filtering by request ID, return all approvals for that request
+        # This allows staff to see the full approval timeline
+        if request_id is not None:
+            queryset = Approval.objects.filter(
+                request_id=request_id
+            ).select_related('request', 'request__requester', 'approver').order_by('level')
+            return queryset
+
+        # Otherwise, filter by user role for pending approvals
         queryset = Approval.objects.none()
 
         if user.role == 'APPROVER_L1':
@@ -37,11 +49,6 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
                 level=Approval.Level.LEVEL_2,
                 status=Approval.Status.PENDING
             ).select_related('request', 'request__requester', 'approver')
-
-        # Filter by request ID if provided
-        request_id = self.request.query_params.get('request', None)
-        if request_id is not None:
-            queryset = queryset.filter(request_id=request_id)
 
         return queryset
 
