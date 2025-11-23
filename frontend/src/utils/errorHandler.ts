@@ -172,11 +172,12 @@ export function formatErrorForToast(error: AppError): {
       .map(f => `• ${f.field}: ${f.message}`)
       .join('\n');
 
-    // If the main message already contains field info, just show field errors
+    // If the main message already contains field info, keep it as-is
     if (error.message.includes(':')) {
-      description = fieldMessages;
+      description = error.message;
     } else {
-      description = fieldMessages;
+      // Otherwise, combine main message with field errors
+      description = `${error.message}\n${fieldMessages}`;
     }
   }
 

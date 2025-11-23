@@ -137,9 +137,28 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
-# Cloudinary (will be configured when needed)
+# Cloudinary Configuration
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', ''),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY', ''),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', ''),
+    'SECURE': True,  # Force HTTPS URLs
 }
+
+# Initialize Cloudinary
+import cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', ''),
+    api_key=os.getenv('CLOUDINARY_API_KEY', ''),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET', ''),
+    secure=True  # Force HTTPS URLs
+)
+
+# Media Files Storage (Cloudinary)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# File Upload Settings
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB

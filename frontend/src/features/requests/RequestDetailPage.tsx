@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { handleAndFormatError } from '@/utils/errorHandler';
+import { calculateSubtotal } from '@/utils/calculateSubtotal';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { PurchaseRequest } from '@/types';
 import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle } from 'lucide-react';
@@ -24,9 +25,20 @@ const RequestDetailPage: React.FC = () => {
     const fetchRequest = async () => {
       if (!id) return;
 
+      const requestId = parseInt(id, 10);
+      if (isNaN(requestId)) {
+        toast({
+          title: 'Invalid Request',
+          description: 'Invalid request ID',
+          variant: 'destructive',
+        });
+        navigate('/staff/requests');
+        return;
+      }
+
       setLoading(true);
       try {
-        const data = await purchaseRequestsAPI.getById(parseInt(id));
+        const data = await purchaseRequestsAPI.getById(requestId);
         setRequest(data);
       } catch (error) {
         const { toastData } = handleAndFormatError(error);
@@ -232,14 +244,7 @@ const RequestDetailPage: React.FC = () => {
                     <div className="text-right">
                       <div className="flex items-center text-xl font-bold text-green-600">
                         <DollarSign className="h-5 w-5" />
-                        {item.subtotal
-                          ? typeof item.subtotal === 'number'
-                            ? item.subtotal.toFixed(2)
-                            : item.subtotal
-                          : (
-                              (typeof item.quantity === 'number' ? item.quantity : parseFloat(item.quantity as string)) *
-                              (typeof item.unit_price === 'number' ? item.unit_price : parseFloat(item.unit_price as string))
-                            ).toFixed(2)}
+                        {calculateSubtotal(item).toFixed(2)}
                       </div>
                     </div>
                   </div>

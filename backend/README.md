@@ -221,7 +221,7 @@ CLOUDINARY_API_SECRET=your-api-secret
 
 # OpenAI (for document processing)
 OPENAI_API_KEY=sk-your-openai-key
-OPENAI_MODEL=gpt-4-turbo-preview
+OPENAI_MODEL=gpt-5
 
 # CORS
 CORS_ALLOWED_ORIGINS=http://localhost:5173

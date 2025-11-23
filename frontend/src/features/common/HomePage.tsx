@@ -74,7 +74,7 @@ const HomePage: React.FC = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-500">Name</p>
                   <p className="text-base text-gray-900">
-                    {user?.first_name} {user?.last_name}
+                    {`${user?.first_name || ''} ${user?.last_name || ''}`.trim() || '—'}
                   </p>
                 </div>
                 <div>

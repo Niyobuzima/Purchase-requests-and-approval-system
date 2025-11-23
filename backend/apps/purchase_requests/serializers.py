@@ -67,6 +67,9 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
             'status_display',
             'total_amount',
             'items',
+            'document_file',
+            'extracted_data',
+            'document_processed',
             'approved_l1_by',
             'approved_l1_at',
             'approved_l2_by',
@@ -81,6 +84,8 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'total_amount',
+            'extracted_data',
+            'document_processed',
             'approved_l1_by',
             'approved_l1_at',
             'approved_l2_by',
@@ -92,7 +97,16 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
         ]
 
     def validate_items(self, value):
-        """Ensure at least one item is provided"""
+        """
+        Ensure at least one item is provided
+        Exception: DRAFT status requests can be created without items (for document upload workflow)
+        """
+        # Allow empty items for DRAFT requests (will be filled by AI processing)
+        status = self.initial_data.get('status', '')
+        if status == 'DRAFT':
+            return value or []
+
+        # For non-DRAFT requests, require at least one item
         if not value:
             raise serializers.ValidationError("At least one item is required.")
         if len(value) < 1:
@@ -110,18 +124,23 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create purchase request with nested items"""
-        items_data = validated_data.pop('items')
+        items_data = validated_data.pop('items', [])
         requester_id = validated_data.pop('requester_id', None)
 
         # Set requester from context if not provided
         if requester_id is None:
-            requester = self.context['request'].user
+            request = self.context.get('request')
+            if request is None:
+                raise serializers.ValidationError(
+                    'Request context is required when requester_id is not provided.'
+                )
+            requester = request.user
             validated_data['requester'] = requester
 
         # Create purchase request
         purchase_request = PurchaseRequest.objects.create(**validated_data)
 
-        # Create items
+        # Create items (if any)
         for item_data in items_data:
             RequestItem.objects.create(request=purchase_request, **item_data)
 

@@ -5,6 +5,7 @@ import type {
   CreatePurchaseRequestData,
   UpdatePurchaseRequestData,
   PaginatedResponse,
+  ExtractedDocumentData,
 } from '../types';
 
 export const purchaseRequestsAPI = {
@@ -91,6 +92,40 @@ export const purchaseRequestsAPI = {
    */
   getItems: async (id: number) => {
     const response = await axiosInstance.get(`/requests/${id}/items/`);
+    return response.data;
+  },
+
+  /**
+   * Upload document/invoice to request
+   */
+  uploadDocument: async (id: number, file: File): Promise<{
+    message: string;
+    document_url?: string;
+  }> => {
+    const formData = new FormData();
+    formData.append('document', file);
+
+    const response = await axiosInstance.post(
+      `/requests/${id}/upload_document/`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Process uploaded document with AI to extract data
+   */
+  processDocument: async (id: number): Promise<{
+    message: string;
+    extracted_data: ExtractedDocumentData;
+    document_processed: boolean;
+  }> => {
+    const response = await axiosInstance.post(`/requests/${id}/process_document/`);
     return response.data;
   },
 };

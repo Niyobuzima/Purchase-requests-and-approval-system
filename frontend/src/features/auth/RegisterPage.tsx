@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
-import type { RegisterData, UserRole } from '@/types';
+import type { RegisterData } from '@/types';
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState<RegisterData>({
@@ -17,10 +17,8 @@ const RegisterPage: React.FC = () => {
     password2: '',
     first_name: '',
     last_name: '',
-    role: 'STAFF',
   });
-  const [loading, setLoading] = useState(false);
-
+   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
