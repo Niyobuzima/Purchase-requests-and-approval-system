@@ -30,13 +30,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = useCallback(async () => {
     const refreshToken = localStorage.getItem('refresh_token');
 
-    // Call backend to blacklist token
+    // Call backend to blacklist token (best effort - don't fail if it errors)
     if (refreshToken) {
       try {
         await authAPI.logout(refreshToken);
       } catch (error) {
-        // Even if backend call fails, still logout locally
-        console.error('Logout error:', error);
+        // Silent fail - token might already be expired/blacklisted
+        // This is fine, we still want to logout locally
       }
     }
 

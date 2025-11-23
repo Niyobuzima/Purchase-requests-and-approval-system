@@ -22,6 +22,12 @@ class PurchaseRequest(models.Model):
         related_name='purchase_requests',
     )
     title = models.CharField(max_length=255)
+    vendor_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='Name of the vendor/supplier'
+    )
     description = models.TextField(blank=True)
     status = models.CharField(
         max_length=20,

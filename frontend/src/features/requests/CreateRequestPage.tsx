@@ -17,6 +17,7 @@ const CreateRequestPage: React.FC = () => {
   const { toast } = useToast();
 
   const [title, setTitle] = useState('');
+  const [vendorName, setVendorName] = useState('');
   const [description, setDescription] = useState('');
   const [items, setItems] = useState<Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>[]>([
     {
@@ -138,6 +139,7 @@ const CreateRequestPage: React.FC = () => {
     try {
       const data: CreatePurchaseRequestData = {
         title,
+        vendor_name: vendorName,
         description,
         status: 'DRAFT',
         items: items.map((item) => ({
@@ -173,6 +175,7 @@ const CreateRequestPage: React.FC = () => {
     try {
       const data: CreatePurchaseRequestData = {
         title,
+        vendor_name: vendorName,
         description,
         status: 'DRAFT',
         items: items.map((item) => ({
@@ -228,6 +231,19 @@ const CreateRequestPage: React.FC = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vendor_name">Vendor/Supplier Name</Label>
+              <Input
+                id="vendor_name"
+                placeholder="e.g., Acme Office Supplies Inc."
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+              />
+              <p className="text-xs text-gray-500">
+                Enter the name of the vendor or supplier for this purchase
+              </p>
             </div>
 
             <div className="space-y-2">

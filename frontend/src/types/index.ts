@@ -83,6 +83,7 @@ export interface PurchaseRequest {
   requester: User;
   requester_id?: number;
   title: string;
+  vendor_name?: string;
   description?: string;
   status: PurchaseRequestStatus;
   status_display?: string;
@@ -126,6 +127,7 @@ export interface PurchaseRequestListItem {
 
 export interface CreatePurchaseRequestData {
   title: string;
+  vendor_name?: string;
   description?: string;
   status?: PurchaseRequestStatus;
   items: Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>[];

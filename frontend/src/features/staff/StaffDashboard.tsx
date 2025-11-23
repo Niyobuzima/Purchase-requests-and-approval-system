@@ -13,9 +13,9 @@ import {
   CheckCircle2,
   XCircle,
   DollarSign,
-  TrendingUp,
   Package,
   Eye,
+  ShoppingCart,
 } from 'lucide-react';
 
 const StaffDashboard: React.FC = () => {
@@ -296,7 +296,7 @@ const StaffDashboard: React.FC = () => {
             <CardDescription>Common tasks and shortcuts</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Button
                 variant="outline"
                 className="h-auto py-4 flex flex-col items-center space-y-2"
@@ -312,6 +312,14 @@ const StaffDashboard: React.FC = () => {
               >
                 <FileText className="h-6 w-6" />
                 <span>View All Requests</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center space-y-2"
+                onClick={() => navigate('/staff/purchase-orders')}
+              >
+                <ShoppingCart className="h-6 w-6" />
+                <span>Purchase Orders</span>
               </Button>
               <Button
                 variant="outline"

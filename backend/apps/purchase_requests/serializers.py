@@ -62,6 +62,7 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
             'requester',
             'requester_id',
             'title',
+            'vendor_name',
             'description',
             'status',
             'status_display',
