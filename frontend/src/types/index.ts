@@ -64,6 +64,20 @@ export interface RequestItem {
   updated_at?: string;
 }
 
+export interface ExtractedDocumentData {
+  vendor_name?: string | null;
+  items?: Array<{
+    description: string;
+    quantity: number;
+    unit_price: number;
+  }>;
+  total_amount?: number | null;
+  invoice_number?: string | null;
+  date?: string | null;
+  success?: boolean;
+  error?: string;
+}
+
 export interface PurchaseRequest {
   id: number;
   requester: User;
@@ -74,6 +88,11 @@ export interface PurchaseRequest {
   status_display?: string;
   total_amount: number | string;
   items: RequestItem[];
+
+  // Document fields
+  document_file?: string | null;
+  extracted_data?: ExtractedDocumentData | null;
+  document_processed?: boolean;
 
   // Approval tracking
   approved_l1_by?: User | null;

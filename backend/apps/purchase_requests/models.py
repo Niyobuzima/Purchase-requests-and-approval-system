@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from decimal import Decimal
+from cloudinary.models import CloudinaryField
 
 
 class PurchaseRequest(models.Model):
@@ -31,6 +32,24 @@ class PurchaseRequest(models.Model):
         max_digits=12,
         decimal_places=2,
         default=Decimal('0.00'),
+    )
+
+    # Document/Invoice Upload
+    document_file = CloudinaryField(
+        'document',
+        null=True,
+        blank=True,
+        folder='purchase_requests/documents',
+        help_text='Upload invoice/receipt PDF or image'
+    )
+    extracted_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='AI-extracted data from uploaded document'
+    )
+    document_processed = models.BooleanField(
+        default=False,
+        help_text='Whether document has been processed by AI'
     )
 
     # Approval tracking

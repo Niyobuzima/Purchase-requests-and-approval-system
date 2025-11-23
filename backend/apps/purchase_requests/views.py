@@ -2,7 +2,9 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
+from django.core.cache import cache
 from apps.purchase_requests.models import PurchaseRequest, RequestItem
 from apps.purchase_requests.serializers import (
     PurchaseRequestSerializer,
@@ -211,3 +213,145 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         items = instance.items.all()
         serializer = RequestItemSerializer(items, many=True)
         return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def upload_document(self, request, pk=None):
+        """
+        Upload invoice/receipt document to request
+
+        Accepts: multipart/form-data with 'document' file field
+        Returns: URL of uploaded document
+        """
+        instance = self.get_object()
+
+        # Only requester can upload
+        if instance.requester != request.user:
+            return Response(
+                {'error': 'You can only upload documents to your own requests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Only allow upload for draft requests
+        if instance.status != PurchaseRequest.Status.DRAFT:
+            return Response(
+                {'error': 'Documents can only be uploaded to draft requests.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get file from request
+        document_file = request.FILES.get('document')
+        if not document_file:
+            return Response(
+                {'error': 'No document file provided.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate file size (10MB)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if document_file.size > max_size:
+            return Response(
+                {'error': 'File size exceeds 10MB limit.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate file type
+        allowed_types = [
+            'application/pdf',
+            'image/jpeg',
+            'image/jpg',
+            'image/png'
+        ]
+        if document_file.content_type not in allowed_types:
+            return Response(
+                {'error': 'Only PDF and image files (JPG, PNG) are allowed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Store the file content temporarily for AI processing (before saving to Cloudinary)
+        # Read the file content before it's closed
+        document_file.seek(0)  # Reset file pointer to beginning
+        file_content = document_file.read()
+        file_name = document_file.name
+
+        # Save file to Cloudinary (for storage/reference)
+        document_file.seek(0)  # Reset again for Cloudinary upload
+        instance.document_file = document_file
+        instance.save()
+
+        # Cache the file content for 5 minutes (enough time for immediate AI processing)
+        cache_key = f'upload_file_{instance.id}'
+        cache.set(cache_key, {
+            'content': file_content,
+            'name': file_name
+        }, timeout=300)  # 5 minutes
+
+        return Response({
+            'message': 'Document uploaded successfully.',
+            'document_url': instance.document_file.url if instance.document_file else None,
+        })
+
+    @action(detail=True, methods=['post'])
+    def process_document(self, request, pk=None):
+        """
+        Process uploaded document with AI to extract invoice data
+
+        Returns extracted data: vendor_name, items, total_amount, etc.
+        """
+        instance = self.get_object()
+
+        # Only requester can process
+        if instance.requester != request.user:
+            return Response(
+                {'error': 'You can only process documents for your own requests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Ensure document is uploaded
+        if not instance.document_file:
+            return Response(
+                {'error': 'No document uploaded. Please upload a document first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Try to get cached file content first (uploaded within last 5 minutes)
+            cache_key = f'upload_file_{instance.id}'
+            cached_file = cache.get(cache_key)
+
+            from utils.ai_processor import get_document_processor
+            processor = get_document_processor()
+
+            if cached_file:
+                # Use cached file content (bypasses Cloudinary download completely)
+                print("Using cached file content for AI processing")
+                extracted_data = processor.process_document_from_bytes(
+                    cached_file['content'],
+                    cached_file['name']
+                )
+                # Clear cache after processing
+                cache.delete(cache_key)
+            else:
+                # Fallback: try to download from Cloudinary
+                print("No cached file, attempting to download from Cloudinary")
+                extracted_data = processor.process_document_from_file(instance.document_file)
+
+            # Save extracted data
+            instance.extracted_data = extracted_data
+            instance.document_processed = extracted_data.get('success', False)
+            instance.save()
+
+            return Response({
+                'message': 'Document processed successfully.' if instance.document_processed else 'Document processing failed.',
+                'extracted_data': extracted_data,
+                'document_processed': instance.document_processed,
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': f'Error processing document: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
