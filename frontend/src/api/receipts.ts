@@ -34,11 +34,7 @@ export const receiptsAPI = {
     formData.append('purchase_order', data.purchase_order.toString());
     formData.append('receipt_file', data.receipt_file);
 
-    const response = await api.post<Receipt>('/receipts/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post<Receipt>('/receipts/', formData);
     return response.data;
   },
 

@@ -10,13 +10,19 @@ const axiosInstance = axios.create({
   },
 });
 
-// Request interceptor - attach access token
+// Request interceptor - attach access token and handle FormData
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+
+    // If sending FormData, remove Content-Type to let axios set it with boundary
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error: AxiosError) => Promise.reject(error)

@@ -81,7 +81,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
         # Check file type
         if hasattr(value, 'content_type'):
-            allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+            allowed_types = ['application/pdf', 'image/jpeg', 'image/png']
             if value.content_type not in allowed_types:
                 raise serializers.ValidationError(
                     "Invalid file type. Only PDF and image files (JPEG, PNG) are allowed"

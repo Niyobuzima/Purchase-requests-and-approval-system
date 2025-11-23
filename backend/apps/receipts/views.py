@@ -132,7 +132,7 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                     'receipt_value': receipt_data.get('vendor_name')
                 })
 
-        # 2. Total Amount Check (within ±5% tolerance)
+        # 2. Total Amount Check (within ï¿½5% tolerance)
         if receipt_total is not None:
             tolerance = 0.05  # 5%
             lower_bound = po_total * (1 - tolerance)
@@ -202,8 +202,6 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         if not discrepancies:
             validation_status = 'MATCHED'
         else:
-            # Check if there are any high severity discrepancies
-            high_severity = any(d['severity'] == 'high' for d in discrepancies)
             validation_status = 'DISCREPANCY'
 
         # Save validation results
