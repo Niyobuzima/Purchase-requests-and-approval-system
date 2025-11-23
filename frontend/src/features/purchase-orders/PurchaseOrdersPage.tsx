@@ -48,7 +48,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
     setDownloading(po.id);
     try {
-      purchaseOrdersAPI.triggerDownload(po.id, po.po_number);
+      await purchaseOrdersAPI.triggerDownload(po.id, po.po_number);
       toast({
         title: 'Success',
         description: `Downloading ${po.po_number}.pdf`,
@@ -144,7 +144,12 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <TableCell>
                         <div className="flex items-center space-x-1 font-semibold text-green-600">
                           <DollarSign className="h-4 w-4" />
-                          <span>{parseFloat(po.request_total).toFixed(2)}</span>
+                          <span>
+                            {(() => {
+                              const val = Number(po.request_total);
+                              return Number.isFinite(val) ? val.toFixed(2) : '0.00';
+                            })()}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>

@@ -218,7 +218,7 @@ const RequestDetailPage: React.FC = () => {
 
     setDownloadingPO(true);
     try {
-      purchaseOrdersAPI.triggerDownload(purchaseOrder.id, purchaseOrder.po_number);
+      await purchaseOrdersAPI.triggerDownload(purchaseOrder.id, purchaseOrder.po_number);
       toast({
         title: 'Success',
         description: `Downloading ${purchaseOrder.po_number}.pdf`,

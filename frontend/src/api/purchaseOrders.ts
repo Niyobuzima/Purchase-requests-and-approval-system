@@ -1,4 +1,5 @@
 import api from './axios';
+import type { PurchaseRequest } from '@/types';
 
 export interface PurchaseOrder {
   id: number;
@@ -14,7 +15,7 @@ export interface PurchaseOrder {
 }
 
 export interface PurchaseOrderDetail extends PurchaseOrder {
-  request_details: any; // Full request object
+  request_details: PurchaseRequest;
 }
 
 export const purchaseOrdersAPI = {
@@ -39,16 +40,36 @@ export const purchaseOrdersAPI = {
   },
 
   // Trigger download in browser
-  triggerDownload: (id: number, poNumber: string) => {
-    purchaseOrdersAPI.downloadPDF(id).then((blob) => {
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+  triggerDownload: async (id: number, poNumber: string): Promise<void> => {
+    let url: string | null = null;
+    let link: HTMLAnchorElement | null = null;
+
+    try {
+      const blob = await purchaseOrdersAPI.downloadPDF(id);
+
+      // Validate blob before creating object URL
+      if (!blob || !(blob instanceof Blob) || blob.size === 0) {
+        throw new Error('Invalid or empty file received from server');
+      }
+
+      url = window.URL.createObjectURL(blob);
+      link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `${poNumber}.pdf`);
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    });
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      // Error will be handled by caller (e.g., showing a toast notification)
+      throw error;
+    } finally {
+      // Cleanup: always revoke object URL and remove link element
+      if (url) {
+        window.URL.revokeObjectURL(url);
+      }
+      if (link && link.parentNode) {
+        link.remove();
+      }
+    }
   },
 };

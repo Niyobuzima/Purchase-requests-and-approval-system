@@ -1,6 +1,7 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from apps.purchase_orders.models import PurchaseOrder
@@ -9,13 +10,6 @@ import requests
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class IsAuthenticated(permissions.BasePermission):
-    """Ensure user is authenticated"""
-
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
 
 
 class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -66,8 +60,9 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         try:
-            # Stream the PDF from Cloudinary
-            response = requests.get(po.pdf_file, stream=True)
+            # Stream the PDF from Cloudinary with timeout to prevent hanging
+            # timeout=(5, 10) means: 5 seconds for connection, 10 seconds for read
+            response = requests.get(po.pdf_file, stream=True, timeout=(5, 10))
             response.raise_for_status()
 
             # Return the PDF as a downloadable file
@@ -79,6 +74,12 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
 
             return http_response
 
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timeout downloading PDF from Cloudinary: {e}")
+            return Response(
+                {'error': 'PDF download timed out. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         except requests.exceptions.RequestException as e:
             logger.error(f"Error downloading PDF from Cloudinary: {e}")
             return Response(

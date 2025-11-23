@@ -3,6 +3,9 @@ Cloudinary utilities for uploading Purchase Order PDFs
 """
 import cloudinary.uploader
 from django.core.files.uploadedfile import InMemoryUploadedFile
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def upload_po_pdf_to_cloudinary(pdf_buffer, po_number):
@@ -32,7 +35,7 @@ def upload_po_pdf_to_cloudinary(pdf_buffer, po_number):
         return result.get('secure_url')
 
     except Exception as e:
-        print(f"Error uploading PDF to Cloudinary: {e}")
+        logger.error(f"Error uploading PDF to Cloudinary: {e}", exc_info=True)
         raise
 
 
@@ -47,9 +50,15 @@ def delete_po_pdf_from_cloudinary(pdf_url):
         bool: True if successful, False otherwise
     """
     try:
-        # Extract public_id from URL
-        # URL format: https://res.cloudinary.com/{cloud_name}/raw/upload/v{version}/{public_id}.pdf
+        # Extract public_id from URL more robustly
+        if '/upload/' not in pdf_url:
+            logger.error(f"Invalid Cloudinary URL format: {pdf_url}")
+            return False
+        
         public_id = pdf_url.split('/upload/')[-1].replace('.pdf', '')
+        if not public_id:
+            logger.error(f"Could not extract public_id from URL: {pdf_url}")
+            return False
 
         # Delete from Cloudinary
         result = cloudinary.uploader.destroy(
@@ -61,5 +70,5 @@ def delete_po_pdf_from_cloudinary(pdf_url):
         return result.get('result') == 'ok'
 
     except Exception as e:
-        print(f"Error deleting PDF from Cloudinary: {e}")
+        logger.error(f"Error deleting PDF from Cloudinary: {e}", exc_info=True)
         return False
