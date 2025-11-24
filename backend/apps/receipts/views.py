@@ -1,13 +1,15 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db import transaction
 
 from .models import Receipt
 from .serializers import ReceiptSerializer, ReceiptApprovalSerializer
+from .filters import ReceiptFilter
 from apps.purchase_orders.models import PurchaseOrder
 from utils.ai_processor import get_document_processor
 import logging
@@ -38,6 +40,10 @@ class ReceiptViewSet(viewsets.ModelViewSet):
     serializer_class = ReceiptSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = ReceiptFilter
+    ordering_fields = ['uploaded_at', 'approved_at', 'validation_status']
+    ordering = ['-uploaded_at']
 
     def get_queryset(self):
         """Filter receipts based on user role and query params"""

@@ -18,6 +18,7 @@ from apps.purchase_requests.permissions import (
     CanCreatePurchaseRequest,
     IsRequesterOrReadOnly,
 )
+from apps.purchase_requests.filters import PurchaseRequestFilter
 
 
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
@@ -35,9 +36,9 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated, CanCreatePurchaseRequest, IsRequesterOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'requester']
-    search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'submitted_at', 'total_amount']
+    filterset_class = PurchaseRequestFilter
+    search_fields = ['title', 'description', 'vendor_name']
+    ordering_fields = ['created_at', 'submitted_at', 'total_amount', 'status']
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -83,10 +84,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         elif user.role == 'FINANCE':
             # Finance sees all approved requests
             return PurchaseRequest.objects.filter(
-                status__in=[
-                    PurchaseRequest.Status.APPROVED,
-                    PurchaseRequest.Status.COMPLETED,
-                ]
+                status=PurchaseRequest.Status.APPROVED
             ).select_related(
                 'requester',
                 'approved_l1_by',
@@ -191,7 +189,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_requests(self, request):
-        """Get current user's requests"""
+        """Get current user's requests with pagination"""
         queryset = PurchaseRequest.objects.filter(
             requester=request.user
         ).select_related(
@@ -204,7 +202,13 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         # Apply filters
         queryset = self.filter_queryset(queryset)
 
-        # Use list serializer explicitly
+        # Paginate the queryset
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = PurchaseRequestListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # Fallback for non-paginated requests
         serializer = PurchaseRequestListSerializer(queryset, many=True)
         return Response(serializer.data)
 

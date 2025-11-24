@@ -37,12 +37,11 @@ class DashboardStatsView(APIView):
             ]
         ).count()
 
-        # Total spent (sum of approved or completed requests)
+        # Total spent (sum of approved requests)
         total_spent = PurchaseRequest.objects.filter(
             status__in=[
                 PurchaseRequest.Status.APPROVED,
-                PurchaseRequest.Status.APPROVED_L2,
-                PurchaseRequest.Status.COMPLETED
+                PurchaseRequest.Status.APPROVED_L2
             ]
         ).aggregate(total=Sum('total_amount'))['total'] or 0
 
@@ -87,12 +86,11 @@ class SpendingAnalyticsView(APIView):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
 
-        # Base queryset: approved or completed requests
+        # Base queryset: approved requests
         queryset = PurchaseRequest.objects.filter(
             status__in=[
                 PurchaseRequest.Status.APPROVED,
-                PurchaseRequest.Status.APPROVED_L2,
-                PurchaseRequest.Status.COMPLETED
+                PurchaseRequest.Status.APPROVED_L2
             ]
         )
 

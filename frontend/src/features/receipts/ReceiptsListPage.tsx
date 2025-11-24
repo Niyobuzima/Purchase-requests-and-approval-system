@@ -4,17 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useDebounce } from '@/hooks/useDebounce';
+import { usePagination } from '@/hooks/usePagination';
+import { SearchBar } from '@/components/common/SearchBar';
+import { Pagination } from '@/components/common/Pagination';
 import { receiptsAPI } from '@/api/receipts';
 import type { Receipt } from '@/types';
 import {
   FileText,
-  Search,
   Eye,
   CheckCircle,
-  XCircle,
   Clock,
   AlertTriangle,
   DollarSign,
@@ -25,31 +27,57 @@ export const ReceiptsListPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { setFilter, getFilter } = useUrlFilters();
+  const { currentPage, pageSize, setPage, setPageSize } = usePagination();
 
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
+  // Get filter values from URL
+  const searchTerm = getFilter('search', '');
+  const statusFilter = getFilter('status', 'all');
+
+  // Debounce search term
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
+  // Reset to page 1 when search or status filter changes
   useEffect(() => {
-    loadReceipts();
-  }, []);
-
-  const loadReceipts = async () => {
-    try {
-      setLoading(true);
-      const data = await receiptsAPI.getAll({});
-      setReceipts(data);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to load receipts',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    if (currentPage !== 1) {
+      setFilter('page', '1');
     }
-  };
+  }, [debouncedSearch, statusFilter, currentPage, setFilter]);
+
+  // Fetch receipts when filters change
+  useEffect(() => {
+    const fetchReceipts = async () => {
+      try {
+        setLoading(true);
+        const params: any = {
+          search: debouncedSearch || undefined,
+          validation_status: statusFilter !== 'all' ? statusFilter : undefined,
+          page: currentPage,
+          page_size: pageSize,
+        };
+
+        const response = await receiptsAPI.getAll(params);
+        setReceipts(response.results || []);
+        setTotalCount(response.count || 0);
+        setTotalPages(Math.ceil((response.count || 0) / pageSize));
+      } catch (error: any) {
+        toast({
+          title: 'Error',
+          description: error.response?.data?.error || 'Failed to load receipts',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReceipts();
+  }, [debouncedSearch, statusFilter, currentPage, pageSize, toast]);
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode; label: string }> = {
@@ -104,16 +132,6 @@ export const ReceiptsListPage: React.FC = () => {
     });
   };
 
-  const filteredReceipts = receipts.filter((receipt) => {
-    const matchesSearch = searchTerm === '' ||
-      receipt.purchase_order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      receipt.id.toString().includes(searchTerm);
-
-    const matchesStatus = statusFilter === 'all' || receipt.validation_status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
   const getBasePath = () => {
     if (user?.role === 'FINANCE') {
       return '/finance';
@@ -121,16 +139,9 @@ export const ReceiptsListPage: React.FC = () => {
     return '/staff';
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading receipts...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleStatusFilterChange = (status: string) => {
+    setFilter('status', status);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -148,29 +159,27 @@ export const ReceiptsListPage: React.FC = () => {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4">
               {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by receipt ID or PO number..."
+              <div className="flex-1">
+                <SearchBar
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  onChange={(value) => setFilter('search', value)}
+                  placeholder="Search by receipt ID, PO number, vendor, or comments..."
                 />
               </div>
 
               {/* Status Filter */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant={statusFilter === 'all' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setStatusFilter('all')}
+                  onClick={() => handleStatusFilterChange('all')}
                 >
                   All
                 </Button>
                 <Button
                   variant={statusFilter === 'PENDING' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setStatusFilter('PENDING')}
+                  onClick={() => handleStatusFilterChange('PENDING')}
                 >
                   <Clock className="h-4 w-4 mr-1" />
                   Pending
@@ -178,7 +187,7 @@ export const ReceiptsListPage: React.FC = () => {
                 <Button
                   variant={statusFilter === 'MATCHED' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setStatusFilter('MATCHED')}
+                  onClick={() => handleStatusFilterChange('MATCHED')}
                 >
                   <CheckCircle className="h-4 w-4 mr-1" />
                   Matched
@@ -186,7 +195,7 @@ export const ReceiptsListPage: React.FC = () => {
                 <Button
                   variant={statusFilter === 'APPROVED' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setStatusFilter('APPROVED')}
+                  onClick={() => handleStatusFilterChange('APPROVED')}
                 >
                   <CheckCircle className="h-4 w-4 mr-1" />
                   Approved
@@ -194,44 +203,26 @@ export const ReceiptsListPage: React.FC = () => {
                 <Button
                   variant={statusFilter === 'DISCREPANCY' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setStatusFilter('DISCREPANCY')}
+                  onClick={() => handleStatusFilterChange('DISCREPANCY')}
                 >
                   <AlertTriangle className="h-4 w-4 mr-1" />
                   Discrepancies
                 </Button>
               </div>
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-2xl font-bold text-gray-900">{receipts.length}</p>
-                <p className="text-sm text-gray-600">Total Receipts</p>
-              </div>
-              <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                <p className="text-2xl font-bold text-yellow-900">
-                  {receipts.filter(r => r.validation_status === 'PENDING').length}
-                </p>
-                <p className="text-sm text-yellow-800">Pending</p>
-              </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <p className="text-2xl font-bold text-green-900">
-                  {receipts.filter(r => r.validation_status === 'MATCHED' || r.validation_status === 'APPROVED').length}
-                </p>
-                <p className="text-sm text-green-800">Matched/Approved</p>
-              </div>
-              <div className="text-center p-3 bg-orange-50 rounded-lg">
-                <p className="text-2xl font-bold text-orange-900">
-                  {receipts.filter(r => r.validation_status === 'DISCREPANCY').length}
-                </p>
-                <p className="text-sm text-orange-800">Discrepancies</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading receipts...</p>
+          </div>
+        )}
+
         {/* Empty State */}
-        {filteredReceipts.length === 0 && (
+        {!loading && receipts.length === 0 && (
           <Card>
             <CardContent className="py-12 text-center">
               <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -248,10 +239,10 @@ export const ReceiptsListPage: React.FC = () => {
         )}
 
         {/* Receipts Table */}
-        {filteredReceipts.length > 0 && (
+        {!loading && receipts.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>All Receipts ({filteredReceipts.length})</CardTitle>
+              <CardTitle>All Receipts ({totalCount})</CardTitle>
               <CardDescription>
                 Click on a receipt to view details and validate
               </CardDescription>
@@ -272,7 +263,7 @@ export const ReceiptsListPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredReceipts.map((receipt) => (
+                  {receipts.map((receipt) => (
                     <TableRow key={receipt.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
                         <div className="flex items-center space-x-2">
@@ -338,6 +329,20 @@ export const ReceiptsListPage: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              {/* Pagination */}
+              {totalCount > 0 && (
+                <div className="mt-4 border-t pt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

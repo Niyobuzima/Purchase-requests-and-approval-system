@@ -14,7 +14,6 @@ class PurchaseRequest(models.Model):
         APPROVED_L2 = 'APPROVED_L2', 'Approved Level 2'
         APPROVED = 'APPROVED', 'Approved'
         REJECTED = 'REJECTED', 'Rejected'
-        COMPLETED = 'COMPLETED', 'Completed'
 
     requester = models.ForeignKey(
         settings.AUTH_USER_MODEL,

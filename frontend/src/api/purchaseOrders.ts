@@ -20,10 +20,15 @@ export interface PurchaseOrderDetail extends PurchaseOrder {
 
 export const purchaseOrdersAPI = {
   // Get all purchase orders
-  getAll: async (): Promise<PurchaseOrder[]> => {
-    const response = await api.get<PaginatedResponse<PurchaseOrder>>('/purchase-orders/');
-    // Handle paginated response - return results array
-    return response.data.results || [];
+  getAll: async (params?: {
+    search?: string;
+    ordering?: string;
+    request?: number;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<PurchaseOrder>> => {
+    const response = await api.get<PaginatedResponse<PurchaseOrder>>('/purchase-orders/', { params });
+    return response.data;
   },
 
   // Get specific purchase order
