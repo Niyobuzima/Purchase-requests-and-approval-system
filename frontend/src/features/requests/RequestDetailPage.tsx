@@ -90,8 +90,8 @@ const RequestDetailPage: React.FC = () => {
         // Fetch purchase order if request is approved
         if (data.status === 'APPROVED') {
           try {
-            const pos = await purchaseOrdersAPI.getAll();
-            const linkedPO = pos.find(po => po.request === requestId);
+            const posResponse = await purchaseOrdersAPI.getAll();
+            const linkedPO = posResponse.results.find(po => po.request === requestId);
             setPurchaseOrder(linkedPO || null);
           } catch (err) {
             console.log('No purchase order found for this request');

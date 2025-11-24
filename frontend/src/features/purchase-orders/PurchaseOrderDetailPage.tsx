@@ -78,7 +78,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
       ]);
 
       setPurchaseOrder(po);
-      setReceipts(receiptsData);
+      setReceipts(receiptsData.results || []);
     } catch (error: any) {
       toast({
         title: 'Error',

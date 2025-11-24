@@ -33,7 +33,7 @@ const StaffDashboard: React.FC = () => {
         const data = await purchaseRequestsAPI.getMyRequests({
           ordering: '-created_at',
         });
-        setRequests(data);
+        setRequests(data.results || []);
       } catch (error) {
         const { toastData } = handleAndFormatError(error);
         toast(toastData);
