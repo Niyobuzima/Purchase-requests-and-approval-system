@@ -1,6 +1,6 @@
 """
 AI Document Processor for Invoice/Receipt Extraction
-Uses OpenAI Responses API with GPT-5 and file_search tool
+Supports OpenAI and Google Gemini with automatic fallback
 """
 
 import os
@@ -8,202 +8,137 @@ import json
 import requests
 import time
 from io import BytesIO
-from typing import Dict, Optional
-from decimal import Decimal
+from typing import Dict, Optional, List
 
+# OpenAI support
 try:
     from openai import OpenAI
     OPENAI_SUPPORT = True
 except ImportError:
     OPENAI_SUPPORT = False
-    print("Warning: openai library not installed. AI extraction disabled.")
+    print("Warning: openai library not installed.")
+
+# Google Gemini support
+try:
+    import google.generativeai as genai
+    GEMINI_SUPPORT = True
+except ImportError:
+    GEMINI_SUPPORT = False
+    print("Warning: google-generativeai library not installed.")
 
 
-class DocumentProcessor:
-    """Process invoices and receipts using OpenAI Responses API with GPT-5 and file_search"""
+class AIProvider:
+    """Base class for AI providers"""
+
+    def __init__(self, name: str):
+        self.name = name
+        self.is_available = False
+
+    def process_document(self, file_content: bytes, filename: str) -> Dict:
+        raise NotImplementedError
+
+
+class OpenAIProvider(AIProvider):
+    """OpenAI GPT provider for document extraction"""
 
     def __init__(self):
+        super().__init__("openai")
         self.api_key = os.getenv('OPENAI_API_KEY')
-        if not self.api_key and OPENAI_SUPPORT:
-            print("Warning: OPENAI_API_KEY not set in environment")
+        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o')
 
         if OPENAI_SUPPORT and self.api_key:
             self.client = OpenAI(api_key=self.api_key)
+            self.is_available = True
         else:
             self.client = None
+            if not OPENAI_SUPPORT:
+                print("OpenAI: Library not installed")
+            elif not self.api_key:
+                print("OpenAI: API key not configured")
 
-    def process_document_from_bytes(self, file_content: bytes, filename: str) -> Dict:
-        """
-        Process document from raw bytes (uploaded file content)
+    def process_document(self, file_content: bytes, filename: str) -> Dict:
+        """Process document using OpenAI Responses API"""
+        if not self.is_available:
+            return {'error': 'OpenAI not available', 'success': False}
 
-        Args:
-            file_content: Raw file bytes
-            filename: Original filename
-
-        Returns:
-            Dict with extracted data
-        """
         try:
-            if not self.client:
-                return {
-                    'error': 'OpenAI client not initialized',
-                    'success': False
-                }
-
-            # Get file extension from filename
+            # Get file extension
             file_extension = self._get_file_extension(filename)
             openai_filename = f"invoice{file_extension}"
 
-            # Upload file to OpenAI for file_search
-            print("Uploading file to OpenAI...")
+            # Upload file to OpenAI
+            print(f"[OpenAI] Uploading file: {openai_filename}")
             file_object = self.client.files.create(
                 file=(openai_filename, BytesIO(file_content)),
-                purpose='assistants'  # file_search requires 'assistants' purpose
-            )
-
-            # Continue with the rest of the processing...
-            return self._process_with_vector_store(file_object, openai_filename)
-
-        except Exception as e:
-            print(f"Error processing document from bytes: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                'error': str(e),
-                'success': False
-            }
-
-    def process_document_from_file(self, cloudinary_file) -> Dict:
-        """
-        Process document from Cloudinary file object (bypassing URL download)
-
-        Args:
-            cloudinary_file: CloudinaryField instance
-
-        Returns:
-            Dict with extracted data
-        """
-        try:
-            if not self.client:
-                return {
-                    'error': 'OpenAI client not initialized',
-                    'success': False
-                }
-            
-            public_id = cloudinary_file.public_id if hasattr(cloudinary_file, 'public_id') else None
-
-            if not public_id:
-                # Fallback: try to extract from URL
-                file_url = cloudinary_file.url
-                parts = file_url.split('/')
-                if len(parts) > 0:
-                    # Get the filename with extension
-                    filename_with_ext = parts[-1].split('?')[0]  # Remove query params
-                    # Get everything after 'upload/'
-                    upload_index = parts.index('upload') if 'upload' in parts else -1
-                    if upload_index >= 0 and upload_index < len(parts) - 1:
-                        # Reconstruct public_id from parts after 'upload'
-                        public_id_parts = parts[upload_index + 1:]
-                        public_id = '/'.join(public_id_parts).split('?')[0]  # Remove extension
-                        # Remove file extension from last part
-                        if '.' in public_id:
-                            public_id = public_id.rsplit('.', 1)[0]
-
-            file_url = cloudinary_file.url
-
-            # Ensure HTTPS
-            if file_url.startswith('http://'):
-                file_url = file_url.replace('http://', 'https://', 1)
-
-            # Try downloading with authentication headers
-            response = requests.get(file_url, timeout=30)
-            response.raise_for_status()
-            file_content = response.content
-
-            # Get file extension from URL
-            file_extension = self._get_file_extension(file_url)
-            filename = f"invoice{file_extension}"
-
-            # Upload file to OpenAI for file_search
-            print("Uploading file to OpenAI...")
-            file_object = self.client.files.create(
-                file=(filename, BytesIO(file_content)),
-                purpose='assistants'  # file_search requires 'assistants' purpose
-            )
-
-            # Continue with the rest of the processing...
-            return self._process_with_vector_store(file_object, filename)
-
-        except Exception as e:
-            print(f"Error processing document from file: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                'error': str(e),
-                'success': False
-            }
-
-    def process_document(self, file_url: str) -> Dict:
-        """
-        Main entry point for document processing using Responses API with file_search
-
-        Args:
-            file_url: URL to the document file (from Cloudinary)
-
-        Returns:
-            Dict with extracted data: {
-                'vendor_name': str,
-                'items': list,
-                'total_amount': decimal,
-                'invoice_number': str,
-                'date': str,
-                'success': bool
-            }
-        """
-        try:
-            if not self.client:
-                return {
-                    'error': 'OpenAI client not initialized',
-                    'success': False
-                }
-            response = requests.get(file_url, timeout=30)
-            response.raise_for_status()
-
-            # Get file extension from URL
-            file_extension = self._get_file_extension(file_url)
-            filename = f"invoice{file_extension}"
-            file_object = self.client.files.create(
-                file=(filename, BytesIO(response.content)),
                 purpose='assistants'
             )
 
-            # Process with vector store
-            return self._process_with_vector_store(file_object, filename)
+            # Build prompt
+            prompt = self._get_extraction_prompt()
+
+            # Determine file type
+            image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']
+            is_image = file_extension.lstrip('.').lower() in image_extensions
+
+            print(f"[OpenAI] File type: {'image' if is_image else 'document'}")
+
+            # Build content array
+            content = [{"type": "input_text", "text": prompt}]
+
+            if is_image:
+                content.append({"type": "input_image", "file_id": file_object.id})
+            else:
+                content.append({"type": "input_file", "file_id": file_object.id})
+
+            # Call Responses API
+            print(f"[OpenAI] Calling model: {self.model}")
+            response = self.client.responses.create(
+                model=self.model,
+                input=[{
+                    "type": "message",
+                    "role": "user",
+                    "content": content
+                }],
+                text={"format": {"type": "json_object"}},
+            )
+
+            result = response.output_text
+
+            # Cleanup
+            try:
+                self.client.files.delete(file_object.id)
+            except Exception as e:
+                print(f"[OpenAI] Cleanup warning: {e}")
+
+            # Parse response
+            extracted_data = self._parse_response(result)
+            if extracted_data:
+                extracted_data['success'] = True
+                extracted_data['provider'] = 'openai'
+                return extracted_data
+
+            return {'error': 'Failed to parse response', 'success': False}
 
         except Exception as e:
-            print(f"Error processing document: {e}")
+            error_str = str(e).lower()
+            # Check for quota/rate limit errors
+            if 'quota' in error_str or 'rate' in error_str or '429' in error_str:
+                print(f"[OpenAI] Quota/Rate limit error: {e}")
+                return {'error': f'quota_exceeded: {e}', 'success': False, 'retry_with_fallback': True}
+
+            print(f"[OpenAI] Error: {e}")
             import traceback
             traceback.print_exc()
-            return {
-                'error': str(e),
-                'success': False
-            }
+            return {'error': str(e), 'success': False, 'retry_with_fallback': True}
 
-    def _process_with_vector_store(self, file_object, filename: str) -> Dict:
-        """
-        Process a file using OpenAI Responses API (GPT-5) with file attachments
+    def _get_file_extension(self, filename: str) -> str:
+        """Extract file extension"""
+        if '.' in filename:
+            return '.' + filename.rsplit('.', 1)[1].lower()
+        return '.pdf'
 
-        Args:
-            file_object: OpenAI file object
-            filename: Name of the file
-
-        Returns:
-            Dict with extracted data
-        """
-        try:
-            model = os.getenv('OPENAI_MODEL', 'gpt-5')
-
-            prompt = """Extract the following information from the uploaded invoice/receipt document and return ONLY a valid JSON object.
+    def _get_extraction_prompt(self) -> str:
+        return """Extract the following information from the uploaded invoice/receipt document and return ONLY a valid JSON object.
 
 Required JSON structure:
 {
@@ -229,78 +164,341 @@ Rules:
 
 Analyze the uploaded document carefully and extract all invoice information."""
 
-            # Determine file type from filename
-            file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
-            image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']
-            is_image = file_extension in image_extensions
+    def _parse_response(self, response_text: str) -> Optional[Dict]:
+        """Parse JSON response"""
+        try:
+            cleaned = response_text.strip()
+            if cleaned.startswith('```json'):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith('```'):
+                cleaned = cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
 
-            print(f"File type detected: {'image' if is_image else 'document'} (.{file_extension})")
+            data = json.loads(cleaned)
 
-            try:
-                # Build content array based on file type
-                content = [
-                    {
-                        "type": "input_text",
-                        "text": prompt
-                    }
-                ]
+            # Ensure required fields
+            data.setdefault('items', [])
+            data.setdefault('vendor_name', None)
+            data.setdefault('total_amount', None)
+            data.setdefault('invoice_number', None)
+            data.setdefault('date', None)
 
-                # Use input_image for images, input_file for PDFs and documents
-                if is_image:
-                    content.append({
-                        "type": "input_image",
-                        "file_id": file_object.id
-                    })
-                else:
-                    content.append({
-                        "type": "input_file",
-                        "file_id": file_object.id
-                    })
+            return data
+        except Exception as e:
+            print(f"[OpenAI] Parse error: {e}")
+            return None
 
-                response = self.client.responses.create(
-                    model=model,
-                    input=[{
-                        "type": "message",
-                        "role": "user",
-                        "content": content
-                    }],
-                    text={"format": {"type": "json_object"}},
+
+class GeminiProvider(AIProvider):
+    """Google Gemini provider for document extraction"""
+
+    def __init__(self):
+        super().__init__("gemini")
+        self.api_key = os.getenv('GEMINI_API_KEY')
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+        if GEMINI_SUPPORT and self.api_key:
+            genai.configure(api_key=self.api_key)
+            self.is_available = True
+        else:
+            if not GEMINI_SUPPORT:
+                print("Gemini: Library not installed")
+            elif not self.api_key:
+                print("Gemini: API key not configured")
+
+    def process_document(self, file_content: bytes, filename: str) -> Dict:
+        """Process document using Google Gemini with file upload"""
+        if not self.is_available:
+            return {'error': 'Gemini not available', 'success': False}
+
+        try:
+            # Get file extension and mime type
+            file_extension = self._get_file_extension(filename)
+            mime_type = self._get_mime_type(file_extension)
+
+            print(f"[Gemini] Processing file: {filename} ({mime_type})")
+            print(f"[Gemini] Using model: {self.model}")
+
+            # Upload file to Gemini
+            print("[Gemini] Uploading file...")
+            uploaded_file = genai.upload_file(
+                BytesIO(file_content),
+                mime_type=mime_type,
+                display_name=filename
+            )
+
+            # Wait for file to be processed
+            print("[Gemini] Waiting for file processing...")
+            while uploaded_file.state.name == "PROCESSING":
+                time.sleep(1)
+                uploaded_file = genai.get_file(uploaded_file.name)
+
+            if uploaded_file.state.name == "FAILED":
+                return {'error': 'Gemini file processing failed', 'success': False}
+
+            print(f"[Gemini] File ready: {uploaded_file.uri}")
+
+            # Create model and generate
+            model = genai.GenerativeModel(self.model)
+            prompt = self._get_extraction_prompt()
+
+            print("[Gemini] Generating response...")
+            response = model.generate_content(
+                [uploaded_file, prompt],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json"
                 )
+            )
 
-                # Extract the response text
-                result = response.output_text
+            result = response.text
 
-            except Exception as responses_error:
-                print(f"Responses API error: {responses_error}")
-                print("Attempting alternative approach...")
-
-                # Alternative: Try using chat.completions with vision if it's an image
-                # Or fall back to a simpler approach
-                return {
-                    'error': f'Responses API failed: {str(responses_error)}',
-                    'success': False
-                }
-
-            # Cleanup file
-            print("Cleaning up resources...")
+            # Cleanup uploaded file
             try:
-                self.client.files.delete(file_object.id)
-            except Exception as cleanup_error:
-                print(f"Cleanup warning: {cleanup_error}")
+                genai.delete_file(uploaded_file.name)
+                print("[Gemini] File cleaned up")
+            except Exception as e:
+                print(f"[Gemini] Cleanup warning: {e}")
 
-            # Parse JSON response
+            # Parse response
             extracted_data = self._parse_response(result)
-
             if extracted_data:
                 extracted_data['success'] = True
+                extracted_data['provider'] = 'gemini'
                 return extracted_data
-            else:
-                return {
-                    'error': 'Failed to parse GPT response',
-                    'success': False,
-                    'raw_response': result[:500]
-                }
 
+            return {'error': 'Failed to parse Gemini response', 'success': False}
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'quota' in error_str or 'rate' in error_str or '429' in error_str:
+                print(f"[Gemini] Quota/Rate limit error: {e}")
+                return {'error': f'quota_exceeded: {e}', 'success': False}
+
+            print(f"[Gemini] Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e), 'success': False}
+
+    def _get_file_extension(self, filename: str) -> str:
+        """Extract file extension"""
+        if '.' in filename:
+            return '.' + filename.rsplit('.', 1)[1].lower()
+        return '.pdf'
+
+    def _get_mime_type(self, extension: str) -> str:
+        """Get MIME type from extension"""
+        mime_map = {
+            '.pdf': 'application/pdf',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+        }
+        return mime_map.get(extension.lower(), 'application/pdf')
+
+    def _get_extraction_prompt(self) -> str:
+        return """Analyze this invoice/receipt document and extract the information into a JSON object.
+
+Extract and return ONLY this JSON structure:
+{
+    "vendor_name": "string or null",
+    "items": [
+        {
+            "description": "item description",
+            "quantity": number,
+            "unit_price": number
+        }
+    ],
+    "total_amount": number or null,
+    "invoice_number": "string or null",
+    "date": "YYYY-MM-DD or null"
+}
+
+Important:
+- Set fields to null if not found
+- Include all line items you can identify
+- quantity and unit_price must be numbers
+- Return valid JSON only, no extra text"""
+
+    def _parse_response(self, response_text: str) -> Optional[Dict]:
+        """Parse JSON response"""
+        try:
+            cleaned = response_text.strip()
+            if cleaned.startswith('```json'):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith('```'):
+                cleaned = cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            data = json.loads(cleaned)
+
+            # Ensure required fields
+            data.setdefault('items', [])
+            data.setdefault('vendor_name', None)
+            data.setdefault('total_amount', None)
+            data.setdefault('invoice_number', None)
+            data.setdefault('date', None)
+
+            return data
+        except Exception as e:
+            print(f"[Gemini] Parse error: {e}")
+            return None
+
+
+class DocumentProcessor:
+    """
+    Document processor with automatic fallback between AI providers.
+    Tries providers in order of priority until one succeeds.
+    """
+
+    def __init__(self):
+        self.providers: List[AIProvider] = []
+        self._init_providers()
+
+    def _init_providers(self):
+        """Initialize providers based on configuration"""
+        priority = os.getenv('AI_PROVIDER_PRIORITY', 'openai,gemini')
+        provider_order = [p.strip().lower() for p in priority.split(',')]
+
+        available_providers = {
+            'openai': OpenAIProvider,
+            'gemini': GeminiProvider,
+        }
+
+        for provider_name in provider_order:
+            if provider_name in available_providers:
+                provider = available_providers[provider_name]()
+                if provider.is_available:
+                    self.providers.append(provider)
+                    print(f"AI Provider initialized: {provider_name}")
+
+        if not self.providers:
+            print("Warning: No AI providers available!")
+
+    def process_document_from_bytes(self, file_content: bytes, filename: str) -> Dict:
+        """
+        Process document from raw bytes with automatic fallback
+
+        Args:
+            file_content: Raw file bytes
+            filename: Original filename
+
+        Returns:
+            Dict with extracted data
+        """
+        if not self.providers:
+            return {
+                'error': 'No AI providers configured. Please set OPENAI_API_KEY or GEMINI_API_KEY.',
+                'success': False
+            }
+
+        errors = []
+
+        for provider in self.providers:
+            print(f"\n{'='*50}")
+            print(f"Trying AI provider: {provider.name}")
+            print(f"{'='*50}")
+
+            result = provider.process_document(file_content, filename)
+
+            if result.get('success'):
+                print(f"✓ Success with {provider.name}")
+                return result
+
+            error = result.get('error', 'Unknown error')
+            errors.append(f"{provider.name}: {error}")
+            print(f"✗ Failed with {provider.name}: {error}")
+
+            # Check if we should try fallback
+            if not result.get('retry_with_fallback', True):
+                print(f"Provider {provider.name} indicated no fallback needed")
+                break
+
+        # All providers failed
+        return {
+            'error': f'All AI providers failed. Errors: {"; ".join(errors)}',
+            'success': False,
+            'providers_tried': [p.name for p in self.providers]
+        }
+
+    def process_document_from_file(self, cloudinary_file) -> Dict:
+        """
+        Process document from Cloudinary file object
+
+        Args:
+            cloudinary_file: CloudinaryField instance
+
+        Returns:
+            Dict with extracted data
+        """
+        try:
+            file_url = cloudinary_file.url
+
+            # Ensure HTTPS
+            if file_url.startswith('http://'):
+                file_url = file_url.replace('http://', 'https://', 1)
+
+            # Download file content
+            print(f"Downloading file from: {file_url}")
+            response = requests.get(file_url, timeout=30)
+            response.raise_for_status()
+            file_content = response.content
+
+            # Get filename from URL
+            filename = file_url.split('/')[-1].split('?')[0]
+
+            return self.process_document_from_bytes(file_content, filename)
+
+        except requests.RequestException as e:
+            return {
+                'error': f'Failed to download file: {e}',
+                'success': False
+            }
+        except Exception as e:
+            print(f"Error processing document from file: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'error': str(e),
+                'success': False
+            }
+
+    def process_document(self, file_url: str) -> Dict:
+        """
+        Process document from URL
+
+        Args:
+            file_url: URL to the document file
+
+        Returns:
+            Dict with extracted data
+        """
+        try:
+            # Ensure HTTPS
+            if file_url.startswith('http://'):
+                file_url = file_url.replace('http://', 'https://', 1)
+
+            # Download file
+            print(f"Downloading file from: {file_url}")
+            response = requests.get(file_url, timeout=30)
+            response.raise_for_status()
+
+            # Get filename from URL
+            filename = file_url.split('/')[-1].split('?')[0]
+
+            return self.process_document_from_bytes(response.content, filename)
+
+        except requests.RequestException as e:
+            return {
+                'error': f'Failed to download file: {e}',
+                'success': False
+            }
         except Exception as e:
             print(f"Error processing document: {e}")
             import traceback
@@ -310,55 +508,9 @@ Analyze the uploaded document carefully and extract all invoice information."""
                 'success': False
             }
 
-    def _get_file_extension(self, url: str) -> str:
-        """Extract file extension from URL"""
-        url_without_params = url.split('?')[0]
-        if '.' in url_without_params:
-            ext = url_without_params.rsplit('.', 1)[1].lower()
-            return f'.{ext}'
-        return '.pdf'
-
-    def _parse_response(self, response_text: str) -> Optional[Dict]:
-        """Parse the JSON response from GPT"""
-        try:
-            cleaned_text = response_text.strip()
-
-            # Remove markdown code blocks if present
-            if cleaned_text.startswith('```json'):
-                cleaned_text = cleaned_text[7:]
-            elif cleaned_text.startswith('```'):
-                cleaned_text = cleaned_text[3:]
-
-            if cleaned_text.endswith('```'):
-                cleaned_text = cleaned_text[:-3]
-
-            cleaned_text = cleaned_text.strip()
-
-            # Parse JSON
-            extracted_data = json.loads(cleaned_text)
-
-            # Validate and ensure all required fields
-            if 'items' not in extracted_data or not isinstance(extracted_data['items'], list):
-                extracted_data['items'] = []
-
-            if 'vendor_name' not in extracted_data:
-                extracted_data['vendor_name'] = None
-            if 'total_amount' not in extracted_data:
-                extracted_data['total_amount'] = None
-            if 'invoice_number' not in extracted_data:
-                extracted_data['invoice_number'] = None
-            if 'date' not in extracted_data:
-                extracted_data['date'] = None
-
-            return extracted_data
-
-        except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
-            print(f"Raw response: {response_text}")
-            return None
-        except Exception as e:
-            print(f"Parse error: {e}")
-            return None
+    def get_available_providers(self) -> List[str]:
+        """Get list of available provider names"""
+        return [p.name for p in self.providers]
 
 
 # Singleton instance

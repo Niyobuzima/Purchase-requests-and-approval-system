@@ -112,7 +112,7 @@ const ProfilePage: React.FC = () => {
                 <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-gray-600">Member Since</p>
-                  <p className="text-base text-gray-900">{formatDate(user.date_joined)}</p>
+                  <p className="text-base text-gray-900">{user.date_joined ? formatDate(user.date_joined) : 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -130,14 +130,14 @@ const ProfilePage: React.FC = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Email Verification</p>
                 <p className="text-base text-gray-900">
-                  {user.is_verified ? (
+                  {user.is_verified === true ? (
                     <span className="text-green-600 font-medium">✓ Verified</span>
                   ) : (
                     <span className="text-yellow-600 font-medium">⚠ Not Verified</span>
                   )}
                 </p>
               </div>
-              {!user.is_verified && (
+              {user.is_verified !== true && (
                 <Button variant="outline" size="sm">
                   Verify Email
                 </Button>

@@ -1,5 +1,5 @@
 # ================================
-# 1. BUILDER STAGE (install deps)
+# 1. BUILDER STAGE (install deps with uv)
 # ================================
 FROM python:3.11-slim AS builder
 
@@ -8,15 +8,35 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
+# Install uv (lightweight, fast package manager)
+RUN pip install --no-cache-dir uv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock* /app/
+# Copy application first to create uv project structure
+COPY . /app/
 
-# Install all dependencies into a local directory (not system-wide)
-RUN uv pip install --no-cache --target=/app/deps \
-    -r requirements.txt
+# Set longer timeout for package downloads (google-generativeai has large dependencies)
+ENV UV_HTTP_TIMEOUT=120
+
+# Initialize uv project and add dependencies
+# uv creates a virtual environment and installs packages efficiently
+RUN uv venv /app/.venv && \
+    . /app/.venv/bin/activate && \
+    uv pip install --no-cache \
+        django==4.2.16 \
+        djangorestframework==3.14.0 \
+        djangorestframework-simplejwt==5.3.0 \
+        psycopg2-binary==2.9.9 \
+        django-cors-headers==4.3.1 \
+        django-filter==23.5 \
+        django-cloudinary-storage==0.3.0 \
+        cloudinary==1.36.0 \
+        python-dotenv==1.0.0 \
+        openai==1.6.1 \
+        google-generativeai==0.8.5 \
+        pillow==10.1.0 \
+        reportlab==4.0.7 \
+        uvicorn[standard]==0.27.0 \
+        gunicorn==21.2.0
 
 # ================================
 # 2. FINAL STAGE (small + fast)
@@ -25,28 +45,38 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PATH="/app/.venv/bin:$PATH"
+ENV VIRTUAL_ENV="/app/.venv"
+
 WORKDIR /app
 
-# Copy dependencies from builder
-COPY --from=builder /app/deps /usr/local/lib/python3.11/site-packages
+# Install uv in final stage (needed for uv run)
+RUN pip install --no-cache-dir uv
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY . /app/
 
-# Entry script permissions
-RUN mkdir -p /app/staticfiles /app/media \
-    && chmod +x /app/docker-entrypoint.sh
+# Create directories and set permissions
+RUN mkdir -p /app/staticfiles /app/media && \
+    chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # ================================
-# 🚀 Run Django with Gunicorn (uvicorn workers)
+# 🚀 Run Django with uvicorn (via uv run)
 # ================================
-CMD ["gunicorn", "backend.asgi:application", \
-    "--bind", "0.0.0.0:8000", \
-    "--worker-class", "uvicorn.workers.UvicornWorker", \
-    "--workers", "4", \
-    "--timeout", "120", \
-    "--log-level", "info"]
+# Using uv run ensures the app runs in the uv-managed virtual environment
+# uvicorn provides async support and better performance than gunicorn for async Django
+# Use HOST and PORT env vars from cloud provider, default to 0.0.0.0:8000 for local development
+CMD uv run uvicorn backend.asgi:application \
+     --host ${HOST:-0.0.0.0} \
+     --port ${PORT:-8000} \
+     --workers 2 \
+     --timeout-keep-alive 120 \
+     --log-level info \
+     --access-log
