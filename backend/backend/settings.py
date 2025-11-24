@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.receipts',
     'apps.analytics',
     'apps.reports',
+    'apps.user_notifications',
 ]
 
 MIDDLEWARE = [
@@ -167,3 +168,22 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+
+# Email Configuration
+# Using SMTP backend for real email testing
+# Configure SMTP settings in .env file
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend'  # SMTP for real emails
+)
+
+# SMTP Settings (for production)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@procureflow.com')
+
+# Frontend URL (for email links)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5174')

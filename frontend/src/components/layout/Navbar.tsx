@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   User,
   LogOut,
@@ -153,8 +154,11 @@ const Navbar: React.FC = () => {
               </div>
             </div>
 
-            {/* Right side - User menu */}
-            <div className="flex items-center">
+            {/* Right side - Notifications & User menu */}
+            <div className="flex items-center space-x-2">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               <div className="relative">
                 <Button
                   variant="ghost"

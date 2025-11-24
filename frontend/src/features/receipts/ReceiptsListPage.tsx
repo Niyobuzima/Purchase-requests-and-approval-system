@@ -66,11 +66,16 @@ export const ReceiptsListPage: React.FC = () => {
         setTotalCount(response.count || 0);
         setTotalPages(Math.ceil((response.count || 0) / pageSize));
       } catch (error: any) {
-        toast({
-          title: 'Error',
-          description: error.response?.data?.error || 'Failed to load receipts',
-          variant: 'destructive',
-        });
+        // Handle 404 errors for invalid page numbers by resetting to page 1
+        if (error?.response?.status === 404 && currentPage > 1) {
+          setPage(1);
+        } else {
+          toast({
+            title: 'Error',
+            description: error.response?.data?.error || 'Failed to load receipts',
+            variant: 'destructive',
+          });
+        }
       } finally {
         setLoading(false);
       }
