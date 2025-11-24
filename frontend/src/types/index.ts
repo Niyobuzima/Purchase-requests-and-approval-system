@@ -9,6 +9,8 @@ export interface User {
   last_name: string;
   role: UserRole;
   role_display: string;
+  date_joined?: string;
+  is_verified?: boolean;
 }
 
 export interface AuthTokens {
