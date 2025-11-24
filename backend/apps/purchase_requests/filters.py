@@ -42,12 +42,23 @@ class PurchaseRequestFilter(django_filters.FilterSet):
 
     def search_filter(self, queryset, name, value):
         """Search across title, description, vendor name, and ID"""
-        return queryset.filter(
+        # Build base text search conditions
+        search_conditions = (
             Q(title__icontains=value) |
             Q(description__icontains=value) |
-            Q(vendor_name__icontains=value) |
-            Q(id__icontains=value)
+            Q(vendor_name__icontains=value)
         )
+        
+        # Try to convert value to integer for ID search
+        try:
+            id_value = int(value.strip())
+            # If successful, add ID equality check
+            search_conditions |= Q(id=id_value)
+        except (ValueError, AttributeError):
+            # If conversion fails, skip ID filter (value is not numeric)
+            pass
+        
+        return queryset.filter(search_conditions)
 
 
 class RequestItemFilter(django_filters.FilterSet):

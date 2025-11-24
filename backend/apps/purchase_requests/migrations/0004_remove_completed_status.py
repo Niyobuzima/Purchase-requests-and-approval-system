@@ -3,6 +3,12 @@
 from django.db import migrations, models
 
 
+def migrate_completed_to_approved(apps, schema_editor):
+    """Migrate existing COMPLETED status records to APPROVED"""
+    PurchaseRequest = apps.get_model('purchase_requests', 'PurchaseRequest')
+    PurchaseRequest.objects.filter(status='COMPLETED').update(status='APPROVED')
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,6 +16,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(migrate_completed_to_approved, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='purchaserequest',
             name='status',

@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePagination } from '@/hooks/usePagination';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
 import { FileText, Download, Eye, DollarSign, AlertTriangle, Upload } from 'lucide-react';
@@ -21,12 +22,11 @@ export const PurchaseOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { setFilter, setFilters, getFilter } = useUrlFilters();
+  const { setFilter, getFilter } = useUrlFilters();
+  const { currentPage, pageSize, setPage, setPageSize } = usePagination();
 
   // Get filter values from URL
   const searchTerm = getFilter('search', '');
-  const currentPage = parseInt(getFilter('page', '1'));
-  const pageSize = parseInt(getFilter('page_size', '20'));
 
   // Debounce search term
   const debouncedSearch = useDebounce(searchTerm, 500);
@@ -260,13 +260,8 @@ export const PurchaseOrdersPage: React.FC = () => {
                     totalPages={totalPages}
                     pageSize={pageSize}
                     totalCount={totalCount}
-                    onPageChange={(page) => setFilter('page', page.toString())}
-                    onPageSizeChange={(size) => {
-                      setFilters({
-                        page_size: size.toString(),
-                        page: '1',
-                      });
-                    }}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
                   />
                 </div>
               )}

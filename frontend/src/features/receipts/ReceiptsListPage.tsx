@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePagination } from '@/hooks/usePagination';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
 import { receiptsAPI } from '@/api/receipts';
@@ -26,7 +27,8 @@ export const ReceiptsListPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { filters, setFilter, setFilters, getFilter } = useUrlFilters();
+  const { setFilter, getFilter } = useUrlFilters();
+  const { currentPage, pageSize, setPage, setPageSize } = usePagination();
 
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,20 +38,16 @@ export const ReceiptsListPage: React.FC = () => {
   // Get filter values from URL
   const searchTerm = getFilter('search', '');
   const statusFilter = getFilter('status', 'all');
-  const currentPage = parseInt(getFilter('page', '1'));
-  const pageSize = parseInt(getFilter('page_size', '20'));
 
   // Debounce search term
   const debouncedSearch = useDebounce(searchTerm, 500);
 
   // Reset to page 1 when search or status filter changes
   useEffect(() => {
-    if (debouncedSearch !== '' || statusFilter !== 'all') {
-      if (currentPage !== 1) {
-        setFilter('page', '1');
-      }
+    if (currentPage !== 1) {
+      setFilter('page', '1');
     }
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, currentPage, setFilter]);
 
   // Fetch receipts when filters change
   useEffect(() => {
@@ -340,13 +338,8 @@ export const ReceiptsListPage: React.FC = () => {
                     totalPages={totalPages}
                     pageSize={pageSize}
                     totalCount={totalCount}
-                    onPageChange={(page) => setFilter('page', page.toString())}
-                    onPageSizeChange={(size) => {
-                      setFilters({
-                        page_size: size.toString(),
-                        page: '1',
-                      });
-                    }}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
                   />
                 </div>
               )}

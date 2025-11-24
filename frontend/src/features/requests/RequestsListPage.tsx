@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePagination } from '@/hooks/usePagination';
 import { handleAndFormatError } from '@/utils/errorHandler';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -42,10 +43,10 @@ const RequestsListPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  const { currentPage, pageSize, setPage, setPageSize } = usePagination();
+
   // Get filter values from URL
   const searchTerm = getFilter('search', '');
-  const currentPage = parseInt(getFilter('page', '1'));
-  const pageSize = parseInt(getFilter('page_size', '20'));
   const ordering = getFilter('ordering', '-created_at');
 
   // Debounce search term
@@ -419,13 +420,8 @@ const RequestsListPage: React.FC = () => {
                     totalPages={totalPages}
                     pageSize={pageSize}
                     totalCount={totalCount}
-                    onPageChange={(page) => setFilter('page', page.toString())}
-                    onPageSizeChange={(size) => {
-                      setFilters({
-                        page_size: size.toString(),
-                        page: '1',
-                      });
-                    }}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
                   />
                 </div>
               )}
