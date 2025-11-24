@@ -17,12 +17,18 @@ export const purchaseRequestsAPI = {
     search?: string;
     ordering?: string;
     page?: number;
-  }): Promise<PurchaseRequestListItem[]> => {
+    page_size?: number;
+    created_after?: string;
+    created_before?: string;
+    amount_min?: string;
+    amount_max?: string;
+    vendor?: string;
+  }): Promise<PaginatedResponse<PurchaseRequestListItem>> => {
     const response = await axiosInstance.get<PaginatedResponse<PurchaseRequestListItem>>(
       '/requests/',
       { params }
     );
-    return response.data.results || [];
+    return response.data;
   },
 
   /**
@@ -32,8 +38,15 @@ export const purchaseRequestsAPI = {
     status?: string;
     search?: string;
     ordering?: string;
-  }): Promise<PurchaseRequestListItem[]> => {
-    const response = await axiosInstance.get<PurchaseRequestListItem[]>(
+    page?: number;
+    page_size?: number;
+    created_after?: string;
+    created_before?: string;
+    amount_min?: string;
+    amount_max?: string;
+    vendor?: string;
+  }): Promise<PaginatedResponse<PurchaseRequestListItem>> => {
+    const response = await axiosInstance.get<PaginatedResponse<PurchaseRequestListItem>>(
       '/requests/my_requests/',
       { params }
     );

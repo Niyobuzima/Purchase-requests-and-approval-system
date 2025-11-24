@@ -18,6 +18,7 @@ from apps.purchase_requests.permissions import (
     CanCreatePurchaseRequest,
     IsRequesterOrReadOnly,
 )
+from apps.purchase_requests.filters import PurchaseRequestFilter
 
 
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
@@ -35,9 +36,9 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated, CanCreatePurchaseRequest, IsRequesterOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'requester']
-    search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'submitted_at', 'total_amount']
+    filterset_class = PurchaseRequestFilter
+    search_fields = ['title', 'description', 'vendor_name']
+    ordering_fields = ['created_at', 'submitted_at', 'total_amount', 'status']
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -83,10 +84,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         elif user.role == 'FINANCE':
             # Finance sees all approved requests
             return PurchaseRequest.objects.filter(
-                status__in=[
-                    PurchaseRequest.Status.APPROVED,
-                    PurchaseRequest.Status.COMPLETED,
-                ]
+                status=PurchaseRequest.Status.APPROVED
             ).select_related(
                 'requester',
                 'approved_l1_by',

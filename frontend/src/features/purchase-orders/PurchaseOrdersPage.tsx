@@ -6,15 +6,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useDebounce } from '@/hooks/useDebounce';
+import { SearchBar } from '@/components/common/SearchBar';
+import { Pagination } from '@/components/common/Pagination';
 import { FileText, Download, Eye, DollarSign, AlertTriangle, Upload } from 'lucide-react';
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<number | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { setFilter, setFilters, getFilter } = useUrlFilters();
+
+  // Get filter values from URL
+  const searchTerm = getFilter('search', '');
+  const currentPage = parseInt(getFilter('page', '1'));
+  const pageSize = parseInt(getFilter('page_size', '20'));
+
+  // Debounce search term
+  const debouncedSearch = useDebounce(searchTerm, 500);
 
   // Helper to get base path based on user role
   const getBasePath = () => {
@@ -24,25 +39,35 @@ export const PurchaseOrdersPage: React.FC = () => {
     return '/staff';
   };
 
+  // Fetch purchase orders
   useEffect(() => {
-    loadPurchaseOrders();
-  }, []);
+    const loadPurchaseOrders = async () => {
+      try {
+        setLoading(true);
+        const params: any = {
+          search: debouncedSearch || undefined,
+          page: currentPage,
+          page_size: pageSize,
+        };
 
-  const loadPurchaseOrders = async () => {
-    try {
-      const data = await purchaseOrdersAPI.getAll();
-      setPurchaseOrders(data);
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load purchase orders',
-        variant: 'destructive',
-      });
-      console.error('Failed to load purchase orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const response = await purchaseOrdersAPI.getAll(params);
+        setPurchaseOrders(response.results || []);
+        setTotalCount(response.count || 0);
+        setTotalPages(Math.ceil((response.count || 0) / pageSize));
+      } catch (err) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load purchase orders',
+          variant: 'destructive',
+        });
+        console.error('Failed to load purchase orders:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPurchaseOrders();
+  }, [debouncedSearch, currentPage, pageSize, toast]);
 
   const handleDownload = async (po: PurchaseOrder) => {
     if (!po.pdf_file) {
@@ -81,17 +106,6 @@ export const PurchaseOrdersPage: React.FC = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading purchase orders...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -101,21 +115,47 @@ export const PurchaseOrdersPage: React.FC = () => {
           <p className="text-gray-600 mt-1">View and download generated purchase orders</p>
         </div>
 
-        {/* Purchase Orders List */}
-        {purchaseOrders.length === 0 ? (
+        {/* Search */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <SearchBar
+              value={searchTerm}
+              onChange={(value) => setFilter('search', value)}
+              placeholder="Search by PO number, request title, or vendor..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading purchase orders...</p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && purchaseOrders.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Purchase Orders Yet</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {searchTerm ? 'No purchase orders found' : 'No Purchase Orders Yet'}
+              </h3>
               <p className="text-gray-600">
-                Purchase orders will appear here after requests are fully approved
+                {searchTerm
+                  ? 'Try adjusting your search criteria'
+                  : 'Purchase orders will appear here after requests are fully approved'}
               </p>
             </CardContent>
           </Card>
-        ) : (
+        )}
+
+        {/* Purchase Orders List */}
+        {!loading && purchaseOrders.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>All Purchase Orders ({purchaseOrders.length})</CardTitle>
+              <CardTitle>All Purchase Orders ({totalCount})</CardTitle>
               <CardDescription>
                 Click on a purchase order to view details or download the PDF
               </CardDescription>
@@ -211,6 +251,25 @@ export const PurchaseOrdersPage: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              {/* Pagination */}
+              {totalCount > 0 && (
+                <div className="mt-4 border-t pt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={(page) => setFilter('page', page.toString())}
+                    onPageSizeChange={(size) => {
+                      setFilters({
+                        page_size: size.toString(),
+                        page: '1',
+                      });
+                    }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

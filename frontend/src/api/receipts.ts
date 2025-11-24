@@ -11,11 +11,22 @@ export const receiptsAPI = {
    * Get all receipts (with optional filters)
    */
   getAll: async (params?: {
+    search?: string;
     purchase_order?: number;
     validation_status?: string;
-  }): Promise<Receipt[]> => {
+    po_number?: string;
+    vendor?: string;
+    uploaded_after?: string;
+    uploaded_before?: string;
+    approved_after?: string;
+    approved_before?: string;
+    has_discrepancies?: boolean;
+    ordering?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<Receipt>> => {
     const response = await api.get<PaginatedResponse<Receipt>>('/receipts/', { params });
-    return response.data.results || [];
+    return response.data;
   },
 
   /**

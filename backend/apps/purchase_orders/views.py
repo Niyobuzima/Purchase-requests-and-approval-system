@@ -1,11 +1,13 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from apps.purchase_orders.models import PurchaseOrder
 from apps.purchase_orders.serializers import PurchaseOrderSerializer, PurchaseOrderListSerializer
+from apps.purchase_orders.filters import PurchaseOrderFilter
 import requests
 import logging
 
@@ -19,6 +21,10 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = PurchaseOrderSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = PurchaseOrderFilter
+    ordering_fields = ['generated_at', 'request__total_amount', 'request__status']
+    ordering = ['-generated_at']
 
     def get_queryset(self):
         """
