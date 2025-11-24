@@ -26,6 +26,7 @@ import { ReceiptsListPage } from '../features/receipts/ReceiptsListPage';
 import StaffDashboard from '../features/staff/StaffDashboard';
 import { ApproverDashboard } from '../features/approver/ApproverDashboard';
 import { FinanceDashboardPage } from '../features/finance/FinanceDashboardPage';
+import { ExportHistoryPage } from '../features/finance/ExportHistoryPage';
 
 const UnauthorizedPage: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -170,6 +171,10 @@ const router = createBrowserRouter([
       {
         path: 'receipts/:receiptId/validate',
         element: <ReceiptValidationPage />,
+      },
+      {
+        path: 'export-history',
+        element: <ExportHistoryPage />,
       },
     ],
   },
