@@ -239,3 +239,85 @@ def generate_spending_summary_pdf(data, filters):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response.write(pdf)
     return response
+
+
+def generate_approval_timeline_csv(queryset, filters):
+    """
+    Generate CSV export for approval timeline data
+    """
+    def generate_rows():
+        # CSV Header
+        writer = csv.writer(Echo())
+        yield writer.writerow([
+            'Request ID',
+            'Request Title',
+            'Requester',
+            'Vendor',
+            'Total Amount',
+            'Status',
+            'Created Date',
+            'Submitted Date',
+            'Time to Submit (hours)',
+            'L1 Approver',
+            'L1 Approval Date',
+            'Time to L1 (hours)',
+            'L2 Approver',
+            'L2 Approval Date',
+            'Time to L2 (hours)',
+            'Total Approval Time (hours)',
+            'Rejected By',
+            'Rejected Date',
+            'Rejection Reason',
+        ])
+
+        # Data rows
+        for request in queryset:
+            # Calculate time durations
+            time_to_submit = ''
+            if request.submitted_at and request.created_at:
+                delta = request.submitted_at - request.created_at
+                time_to_submit = f"{delta.total_seconds() / 3600:.2f}"
+
+            time_to_l1 = ''
+            if request.approved_l1_at and request.submitted_at:
+                delta = request.approved_l1_at - request.submitted_at
+                time_to_l1 = f"{delta.total_seconds() / 3600:.2f}"
+
+            time_to_l2 = ''
+            if request.approved_l2_at and request.approved_l1_at:
+                delta = request.approved_l2_at - request.approved_l1_at
+                time_to_l2 = f"{delta.total_seconds() / 3600:.2f}"
+
+            total_approval_time = ''
+            if request.submitted_at:
+                end_time = request.approved_l2_at or request.approved_l1_at or request.rejected_at
+                if end_time:
+                    delta = end_time - request.submitted_at
+                    total_approval_time = f"{delta.total_seconds() / 3600:.2f}"
+
+            yield writer.writerow([
+                request.id,
+                request.title,
+                f"{request.requester.first_name} {request.requester.last_name}".strip() or request.requester.username,
+                request.vendor_name or 'N/A',
+                f"{request.total_amount:.2f}",
+                request.get_status_display(),
+                request.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                request.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if request.submitted_at else 'Not Submitted',
+                time_to_submit,
+                f"{request.approved_l1_by.first_name} {request.approved_l1_by.last_name}".strip() if request.approved_l1_by else 'N/A',
+                request.approved_l1_at.strftime('%Y-%m-%d %H:%M:%S') if request.approved_l1_at else 'N/A',
+                time_to_l1,
+                f"{request.approved_l2_by.first_name} {request.approved_l2_by.last_name}".strip() if request.approved_l2_by else 'N/A',
+                request.approved_l2_at.strftime('%Y-%m-%d %H:%M:%S') if request.approved_l2_at else 'N/A',
+                time_to_l2,
+                total_approval_time,
+                f"{request.rejected_by.first_name} {request.rejected_by.last_name}".strip() if request.rejected_by else 'N/A',
+                request.rejected_at.strftime('%Y-%m-%d %H:%M:%S') if request.rejected_at else 'N/A',
+                request.rejection_reason or 'N/A',
+            ])
+
+    response = StreamingHttpResponse(generate_rows(), content_type='text/csv')
+    filename = f"approval_timeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response

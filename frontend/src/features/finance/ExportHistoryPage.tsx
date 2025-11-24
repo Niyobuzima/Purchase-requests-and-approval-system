@@ -60,6 +60,7 @@ export const ExportHistoryPage: React.FC = () => {
       PURCHASE_ORDERS: 'default',
       RECEIPTS: 'secondary',
       SPENDING_SUMMARY: 'outline',
+      APPROVAL_TIMELINE: 'outline',
     };
     return <Badge variant={colors[type] || 'default'}>{type.replace(/_/g, ' ')}</Badge>;
   };

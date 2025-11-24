@@ -1,7 +1,9 @@
+import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db.models import Sum, Count, Avg, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -10,18 +12,22 @@ from apps.receipts.models import Receipt
 from apps.purchase_requests.models import PurchaseRequest
 from .models import ExportLog
 from .serializers import ExportRequestSerializer, ExportLogSerializer
+from .permissions import IsFinanceUser
 from .utils import (
     generate_purchase_orders_csv,
     generate_receipts_csv,
-    generate_spending_summary_pdf
+    generate_spending_summary_pdf,
+    generate_approval_timeline_csv
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ReportViewSet(viewsets.ViewSet):
     """
     ViewSet for generating and downloading reports
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsFinanceUser]
 
     def get_queryset_with_filters(self, model, filters):
         """Apply common filters to queryset"""
@@ -61,13 +67,6 @@ class ReportViewSet(viewsets.ViewSet):
         Export data based on parameters
         POST /api/reports/export/
         """
-        # Only Finance can export
-        if request.user.role != 'FINANCE':
-            return Response(
-                {'error': 'Only Finance users can export reports'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         serializer = ExportRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -121,6 +120,18 @@ class ReportViewSet(viewsets.ViewSet):
                 po_queryset = self.get_queryset_with_filters(PurchaseOrder, filters)
                 record_count = po_queryset.count()
 
+                # Build base query filters for date range
+                pr_date_filters = Q()
+                receipt_date_filters = Q()
+                
+                if filters.get('start_date'):
+                    pr_date_filters &= Q(created_at__date__gte=filters['start_date'])
+                    receipt_date_filters &= Q(uploaded_at__date__gte=filters['start_date'])
+                
+                if filters.get('end_date'):
+                    pr_date_filters &= Q(created_at__date__lte=filters['end_date'])
+                    receipt_date_filters &= Q(uploaded_at__date__lte=filters['end_date'])
+
                 summary_data = {
                     'total_records': record_count,
                     'total_pos': po_queryset.count(),
@@ -131,18 +142,23 @@ class ReportViewSet(viewsets.ViewSet):
                         avg=Avg('request__total_amount')
                     )['avg'] or 0),
                     'approved_count': PurchaseRequest.objects.filter(
+                        pr_date_filters,
                         status='APPROVED'
                     ).count(),
                     'pending_count': PurchaseRequest.objects.filter(
+                        pr_date_filters,
                         status__in=['PENDING_L1', 'PENDING_L2']
                     ).count(),
                     'rejected_count': PurchaseRequest.objects.filter(
+                        pr_date_filters,
                         status__in=['REJECTED_L1', 'REJECTED_L2']
                     ).count(),
                     'receipts_validated': Receipt.objects.filter(
+                        receipt_date_filters,
                         validation_status__in=['MATCHED', 'APPROVED']
                     ).count(),
                     'receipts_pending': Receipt.objects.filter(
+                        receipt_date_filters,
                         validation_status='PENDING'
                     ).count(),
                 }
@@ -167,6 +183,41 @@ class ReportViewSet(viewsets.ViewSet):
                 else:
                     return Response(
                         {'error': 'CSV format not supported for Spending Summary. Use PDF.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            elif export_type == 'APPROVAL_TIMELINE':
+                # Get purchase requests with approval timeline data
+                queryset = PurchaseRequest.objects.all()
+                
+                # Apply date filters
+                if filters.get('start_date'):
+                    queryset = queryset.filter(created_at__date__gte=filters['start_date'])
+                if filters.get('end_date'):
+                    queryset = queryset.filter(created_at__date__lte=filters['end_date'])
+                
+                # Apply status filter if provided
+                if filters.get('status_filter'):
+                    queryset = queryset.filter(status=filters['status_filter'])
+                
+                # Exclude drafts by default (only include submitted requests)
+                queryset = queryset.exclude(status='DRAFT')
+                
+                # Select related data to avoid N+1 queries
+                queryset = queryset.select_related(
+                    'requester',
+                    'approved_l1_by',
+                    'approved_l2_by',
+                    'rejected_by'
+                ).order_by('-created_at')
+                
+                record_count = queryset.count()  # Count before consuming queryset
+
+                if export_format == 'CSV':
+                    response = generate_approval_timeline_csv(queryset, filters)
+                else:
+                    return Response(
+                        {'error': 'PDF format not supported for Approval Timeline. Use CSV.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
@@ -199,9 +250,43 @@ class ReportViewSet(viewsets.ViewSet):
 
             return response
 
-        except Exception as e:
+        except ValidationError as e:
+            logger.warning(
+                f"Validation error during export: {str(e)}",
+                extra={
+                    'user': request.user.username,
+                    'export_type': export_type,
+                    'export_format': export_format,
+                }
+            )
             return Response(
-                {'error': f'Export failed: {str(e)}'},
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except PermissionDenied as e:
+            logger.warning(
+                f"Permission denied during export: {str(e)}",
+                extra={
+                    'user': request.user.username,
+                    'export_type': export_type,
+                }
+            )
+            return Response(
+                {'error': 'You do not have permission to perform this export'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        except Exception as e:
+            logger.exception(
+                "Unexpected error during export",
+                extra={
+                    'user': request.user.username,
+                    'export_type': export_type,
+                    'export_format': export_format,
+                    'filters': filters_for_log if 'filters_for_log' in locals() else filters,
+                }
+            )
+            return Response(
+                {'error': 'An unexpected error occurred while generating the report. Please try again or contact support.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -211,12 +296,6 @@ class ReportViewSet(viewsets.ViewSet):
         Get export history for current user
         GET /api/reports/history/
         """
-        if request.user.role != 'FINANCE':
-            return Response(
-                {'error': 'Only Finance users can view export history'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         logs = ExportLog.objects.filter(user=request.user)[:20]
         serializer = ExportLogSerializer(logs, many=True)
         return Response(serializer.data)
@@ -227,12 +306,6 @@ class ReportViewSet(viewsets.ViewSet):
         Preview data before export (first 10 records)
         GET /api/reports/preview/?export_type=PURCHASE_ORDERS&start_date=2025-01-01
         """
-        if request.user.role != 'FINANCE':
-            return Response(
-                {'error': 'Only Finance users can preview reports'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         export_type = request.query_params.get('export_type', 'PURCHASE_ORDERS')
         filters = {
             'start_date': request.query_params.get('start_date'),

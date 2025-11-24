@@ -112,6 +112,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
               <option value="PURCHASE_ORDERS">Purchase Orders</option>
               <option value="RECEIPTS">Receipts</option>
               <option value="SPENDING_SUMMARY">Spending Summary</option>
+              <option value="APPROVAL_TIMELINE">Approval Timeline</option>
             </Select>
           </div>
 
