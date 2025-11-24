@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { analyticsAPI, type DashboardStats, type SpendingByVendor, type MonthlySpending, type PendingReceipt, type RequestStatusDistribution } from '@/api/analytics';
+import { getBasePath } from '@/utils/pathHelpers';
 import {
   DollarSign,
   FileText,
@@ -306,7 +307,7 @@ export const FinanceDashboardPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/finance/receipts/${receipt.id}/validate`)}
+                        onClick={() => navigate(`${getBasePath('FINANCE')}/receipts/${receipt.id}/validate`)}
                       >
                         Review
                       </Button>

@@ -65,7 +65,10 @@ class ReceiptSerializer(serializers.ModelSerializer):
         """Get total amount from extracted receipt data or purchase order"""
         # First try to get from extracted receipt data
         if obj.extracted_receipt_data and 'total_amount' in obj.extracted_receipt_data:
-            return obj.extracted_receipt_data.get('total_amount')
+            try:
+                return float(obj.extracted_receipt_data.get('total_amount'))
+            except (ValueError, TypeError):
+                pass  # Fall through to PO total
 
         # Fallback to purchase order total
         if obj.purchase_order and obj.purchase_order.request:

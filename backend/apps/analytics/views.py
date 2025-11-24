@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count, Q, F
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from apps.purchase_requests.models import PurchaseRequest
 from apps.purchase_orders.models import PurchaseOrder
 from apps.receipts.models import Receipt
@@ -46,8 +46,10 @@ class DashboardStatsView(APIView):
             ]
         ).aggregate(total=Sum('total_amount'))['total'] or 0
 
-        # Active purchase orders (have PO but not completed)
-        active_pos = PurchaseOrder.objects.count()
+        # Active purchase orders (approved but not completed)
+        active_pos = PurchaseOrder.objects.filter(
+            request__status=PurchaseRequest.Status.APPROVED
+        ).count()
 
         # Pending receipt validations
         pending_receipts = Receipt.objects.filter(
@@ -97,7 +99,6 @@ class SpendingAnalyticsView(APIView):
         # Apply date filters
         if start_date:
             try:
-                from datetime import datetime
                 start = datetime.strptime(start_date, '%Y-%m-%d')
                 queryset = queryset.filter(created_at__gte=start)
             except ValueError:
@@ -105,7 +106,6 @@ class SpendingAnalyticsView(APIView):
 
         if end_date:
             try:
-                from datetime import datetime
                 end = datetime.strptime(end_date, '%Y-%m-%d')
                 # Include the entire end date
                 end = datetime.combine(end.date(), datetime.max.time())
@@ -213,10 +213,11 @@ class RequestStatusDistributionView(APIView):
         ).order_by('-count')
 
         # Format data
+        status_map = dict(PurchaseRequest.Status.choices)
         status_data = [
             {
                 'status': item['status'],
-                'status_display': dict(PurchaseRequest.Status.choices)[item['status']],
+                'status_display': status_map[item['status']],
                 'count': item['count']
             }
             for item in distribution

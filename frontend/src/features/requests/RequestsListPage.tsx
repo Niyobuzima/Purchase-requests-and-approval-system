@@ -37,21 +37,19 @@ const RequestsListPage: React.FC = () => {
     setLoading(true);
     try {
       // Finance users get ALL requests, others get only their own
-      if (user?.role === 'FINANCE') {
-        const response = await purchaseRequestsAPI.getAll({
-          search: searchTerm || undefined,
-          status: statusFilter,
-          ordering: '-created_at',
-        });
-        setRequests(response.results || response as any);
-      } else {
-        const data = await purchaseRequestsAPI.getMyRequests({
-          search: searchTerm || undefined,
-          status: statusFilter,
-          ordering: '-created_at',
-        });
-        setRequests(data);
-      }
+      const data = user?.role === 'FINANCE'
+        ? await purchaseRequestsAPI.getAll({
+            search: searchTerm || undefined,
+            status: statusFilter,
+            ordering: '-created_at',
+          })
+        : await purchaseRequestsAPI.getMyRequests({
+            search: searchTerm || undefined,
+            status: statusFilter,
+            ordering: '-created_at',
+          });
+      
+      setRequests(data || []);
     } catch (error) {
       const { toastData } = handleAndFormatError(error);
       toast(toastData);
