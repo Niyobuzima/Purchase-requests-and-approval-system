@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Receipt,
+  Download,
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -138,6 +139,14 @@ const Navbar: React.FC = () => {
                     >
                       <Receipt className="h-4 w-4 mr-2" />
                       Receipts
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/finance/export-history')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export History
                     </Button>
                   </>
                 )}

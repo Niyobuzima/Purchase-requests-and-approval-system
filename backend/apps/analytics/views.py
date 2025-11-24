@@ -188,7 +188,7 @@ class PendingReceiptsView(APIView):
                 'uploaded_by_name': f"{receipt.uploaded_by.first_name} {receipt.uploaded_by.last_name}" if receipt.uploaded_by else 'Unknown',
                 'request_title': receipt.purchase_order.request.title,
                 'total_amount': float(receipt.purchase_order.request.total_amount),
-                'discrepancy_count': len(receipt.discrepancies) if receipt.discrepancies else 0,
+                'discrepancy_count': len(receipt.discrepancies) if isinstance(receipt.discrepancies, list) else 0,
             })
 
         return Response({

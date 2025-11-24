@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { analyticsAPI, type DashboardStats, type SpendingByVendor, type MonthlySpending, type PendingReceipt, type RequestStatusDistribution } from '@/api/analytics';
 import { getBasePath } from '@/utils/pathHelpers';
+import { ExportModal } from '@/components/finance/ExportModal';
 import {
   DollarSign,
   FileText,
@@ -16,11 +17,13 @@ import {
   TrendingUp,
   Calendar,
   Loader2,
+  Download,
 } from 'lucide-react';
 
 export const FinanceDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [spendingByVendor, setSpendingByVendor] = useState<SpendingByVendor[]>([]);
@@ -98,9 +101,15 @@ export const FinanceDashboardPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Finance Dashboard</h1>
-        <p className="text-gray-600 mt-2">Monitor spending, approvals, and receipt validations</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Finance Dashboard</h1>
+          <p className="text-gray-600 mt-2">Monitor spending, approvals, and receipt validations</p>
+        </div>
+        <Button onClick={() => setExportModalOpen(true)}>
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
       </div>
 
       {/* Summary Stats Cards */}
@@ -325,6 +334,9 @@ export const FinanceDashboardPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Export Modal */}
+      <ExportModal open={exportModalOpen} onOpenChange={setExportModalOpen} />
     </div>
   );
 };
