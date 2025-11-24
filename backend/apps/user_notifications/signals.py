@@ -35,7 +35,7 @@ def notify_on_request_submitted(sender, instance, created, **kwargs):
             # to avoid duplicate notifications on repeated saves
             if Notification.objects.filter(
                 notification_type=Notification.NotificationType.PENDING_APPROVAL_L1,
-                request_id=instance.id
+                request=instance
             ).exists():
                 return  # Already notified, skip
 

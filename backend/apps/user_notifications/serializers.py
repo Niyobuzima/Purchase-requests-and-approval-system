@@ -5,9 +5,10 @@ from apps.user_notifications.models import Notification
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for Notification model"""
     # Expose IDs for frontend compatibility while using ForeignKey relationships
-    request_id = serializers.IntegerField(source='request.id', read_only=True, allow_null=True)
-    po_id = serializers.IntegerField(source='purchase_order.id', read_only=True, allow_null=True)
-    receipt_id = serializers.IntegerField(source='receipt.id', read_only=True, allow_null=True)
+    # Using PrimaryKeyRelatedField to safely handle None values
+    request_id = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True, source='request')
+    po_id = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True, source='purchase_order')
+    receipt_id = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True, source='receipt')
 
     class Meta:
         model = Notification
