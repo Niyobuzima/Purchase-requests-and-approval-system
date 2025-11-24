@@ -54,13 +54,18 @@ export const PurchaseOrdersPage: React.FC = () => {
         setPurchaseOrders(response.results || []);
         setTotalCount(response.count || 0);
         setTotalPages(Math.ceil((response.count || 0) / pageSize));
-      } catch (err) {
-        toast({
-          title: 'Error',
-          description: 'Failed to load purchase orders',
-          variant: 'destructive',
-        });
-        console.error('Failed to load purchase orders:', err);
+      } catch (err: any) {
+        // Handle 404 errors for invalid page numbers by resetting to page 1
+        if (err?.response?.status === 404 && currentPage > 1) {
+          setPage(1);
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Failed to load purchase orders',
+            variant: 'destructive',
+          });
+          console.error('Failed to load purchase orders:', err);
+        }
       } finally {
         setLoading(false);
       }

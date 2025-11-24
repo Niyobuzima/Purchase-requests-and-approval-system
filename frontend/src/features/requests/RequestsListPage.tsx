@@ -84,9 +84,14 @@ const RequestsListPage: React.FC = () => {
         setTotalCount((response || []).length);
         setTotalPages(1);
       }
-    } catch (error) {
-      const { toastData } = handleAndFormatError(error);
-      toast(toastData);
+    } catch (error: any) {
+      // Handle 404 errors for invalid page numbers by resetting to page 1
+      if (error?.response?.status === 404 && currentPage > 1) {
+        setPage(1);
+      } else {
+        const { toastData } = handleAndFormatError(error);
+        toast(toastData);
+      }
     } finally {
       setLoading(false);
     }
