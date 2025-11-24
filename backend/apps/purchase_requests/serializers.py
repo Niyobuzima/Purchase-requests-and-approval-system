@@ -55,6 +55,9 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
     approved_l2_by = UserSerializer(read_only=True)
     rejected_by = UserSerializer(read_only=True)
 
+    # Custom field to return full URL for document_file
+    document_file = serializers.SerializerMethodField()
+
     class Meta:
         model = PurchaseRequest
         fields = [
@@ -96,6 +99,13 @@ class PurchaseRequestSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def get_document_file(self, obj):
+        """Return full URL for document_file CloudinaryField"""
+        if obj.document_file:
+            # CloudinaryField has a .url property that returns the full URL
+            return obj.document_file.url
+        return None
 
     def validate_items(self, value):
         """

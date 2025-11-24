@@ -48,7 +48,7 @@ def notify_on_request_submitted(sender, instance, created, **kwargs):
                     title=f'New Request Pending Approval',
                     message=f'Purchase request PR-{instance.id} from {instance.requester.get_full_name() or instance.requester.username} requires your Level 1 approval',
                     link=f'/approver/requests/{instance.id}',
-                    request_id=instance.id
+                    request=instance
                 )
 
 
