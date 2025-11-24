@@ -31,6 +31,14 @@ def notify_on_request_submitted(sender, instance, created, **kwargs):
     if not created:
         # Check if status changed to PENDING
         if instance.status == PurchaseRequest.Status.PENDING:
+            # Check if we've already notified L1 approvers for this request
+            # to avoid duplicate notifications on repeated saves
+            if Notification.objects.filter(
+                notification_type=Notification.NotificationType.PENDING_APPROVAL_L1,
+                request_id=instance.id
+            ).exists():
+                return  # Already notified, skip
+
             # Notify L1 approvers
             l1_approvers = User.objects.filter(role='APPROVER_L1')
             for approver in l1_approvers:
@@ -66,7 +74,7 @@ def notify_on_approval_status_change(sender, instance, created, **kwargs):
                 title='Request Approved (Level 1)',
                 message=f'Your request PR-{request.id} has been approved by {approver_name}',
                 link=f'/staff/requests/{request.id}',
-                request_id=request.id
+                request=request
             )
 
             # Send email to requester
@@ -81,7 +89,7 @@ def notify_on_approval_status_change(sender, instance, created, **kwargs):
                     title='Request Pending Level 2 Approval',
                     message=f'Purchase request PR-{request.id} from {request.requester.get_full_name() or request.requester.username} requires your Level 2 approval',
                     link=f'/approver/requests/{request.id}',
-                    request_id=request.id
+                    request=request
                 )
 
         elif instance.level == 2:
@@ -93,7 +101,7 @@ def notify_on_approval_status_change(sender, instance, created, **kwargs):
                 title='Request Fully Approved!',
                 message=f'Your request PR-{request.id} has been fully approved. Purchase Order will be generated shortly.',
                 link=f'/staff/requests/{request.id}',
-                request_id=request.id
+                request=request
             )
 
             # Send email to requester
@@ -110,7 +118,7 @@ def notify_on_approval_status_change(sender, instance, created, **kwargs):
             title=f'Request Rejected at {level_text}',
             message=f'Your request PR-{request.id} was rejected by {approver_name} at {level_text}. Reason: {rejection_reason}',
             link=f'/staff/requests/{request.id}',
-            request_id=request.id
+            request=request
         )
 
         # Send email to requester
@@ -128,8 +136,8 @@ def notify_on_po_generated(sender, instance, created, **kwargs):
             title='Purchase Order Generated',
             message=f'Purchase Order {instance.po_number} has been generated for your request PR-{instance.request.id}',
             link=f'/staff/purchase-orders/{instance.id}',
-            po_id=instance.id,
-            request_id=instance.request.id
+            purchase_order=instance,
+            request=instance.request
         )
 
         # Send email to requester
@@ -149,7 +157,7 @@ def notify_on_po_generated(sender, instance, created, **kwargs):
                 title='New Purchase Order Generated',
                 message=f'Purchase Order {instance.po_number} has been generated',
                 link=f'/finance/purchase-orders/{instance.id}',
-                po_id=instance.id
+                purchase_order=instance
             )
 
             # Send email to finance user
@@ -177,8 +185,8 @@ def notify_on_receipt_uploaded(sender, instance, created, **kwargs):
                 title='New Receipt Uploaded',
                 message=f'A receipt has been uploaded for PO {po_number} by {uploader_name}',
                 link=f'/finance/receipts/{instance.id}/validate',
-                receipt_id=instance.id,
-                po_id=instance.purchase_order.id if instance.purchase_order else None
+                receipt=instance,
+                purchase_order=instance.purchase_order
             )
 
             # Send email to finance user

@@ -54,6 +54,7 @@ export function useNotifications() {
 
     const interval = setInterval(() => {
       fetchUnreadCount();
+      fetchNotifications();
     }, POLL_INTERVAL);
 
     return () => clearInterval(interval);

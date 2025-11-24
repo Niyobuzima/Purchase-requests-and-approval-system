@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNotifications } from '@/hooks/useNotifications';
+import { Notification } from '@/api/notifications';
 import { CheckCheck, Bell } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,7 +30,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = async (notification: Notification) => {
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }

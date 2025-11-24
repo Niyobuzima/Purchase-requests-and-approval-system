@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 
 class Notification(models.Model):
@@ -32,10 +33,29 @@ class Notification(models.Model):
     message = models.TextField()
     link = models.CharField(max_length=500, blank=True, null=True, help_text="URL to navigate to when clicked")
 
-    # Related objects (optional)
-    request_id = models.IntegerField(blank=True, null=True)
-    po_id = models.IntegerField(blank=True, null=True)
-    receipt_id = models.IntegerField(blank=True, null=True)
+    # Related objects - ForeignKey relationships ensure referential integrity
+    # Using SET_NULL to preserve notification history even if related objects are deleted
+    request = models.ForeignKey(
+        'purchase_requests.PurchaseRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
+    purchase_order = models.ForeignKey(
+        'purchase_orders.PurchaseOrder',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
+    receipt = models.ForeignKey(
+        'receipts.Receipt',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
 
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -54,7 +74,6 @@ class Notification(models.Model):
     def mark_as_read(self):
         """Mark this notification as read"""
         if not self.is_read:
-            from django.utils import timezone
             self.is_read = True
             self.read_at = timezone.now()
             self.save(update_fields=['is_read', 'read_at'])

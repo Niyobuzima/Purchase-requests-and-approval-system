@@ -4,7 +4,8 @@ Email utility functions for sending notification emails
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from django.utils.html import strip_tags, escape
+from urllib.parse import quote as urlquote
 
 
 def send_notification_email(user, subject, message, action_url=None):
@@ -18,7 +19,18 @@ def send_notification_email(user, subject, message, action_url=None):
         action_url: Optional URL for action button
     """
     try:
-        # Create HTML email content
+        # Escape all user-controlled values to prevent XSS
+        safe_username = escape(user.get_full_name() or user.username)
+        safe_message = escape(message)
+        safe_action_url = None
+        action_button_html = ''
+        
+        if action_url:
+            # Validate and properly encode the URL
+            safe_action_url = escape(action_url)
+            action_button_html = f'<a href="{safe_action_url}" class="button">View Details</a>'
+        
+        # Create HTML email content with escaped values
         html_message = f"""
         <!DOCTYPE html>
         <html>
@@ -77,11 +89,11 @@ def send_notification_email(user, subject, message, action_url=None):
                     <h2>ProcureFlow Notification</h2>
                 </div>
                 <div class="content">
-                    <p>Hello {user.get_full_name() or user.username},</p>
+                    <p>Hello {safe_username},</p>
                     <div class="message">
-                        <p>{message}</p>
+                        <p>{safe_message}</p>
                     </div>
-                    {f'<a href="{action_url}" class="button">View Details</a>' if action_url else ''}
+                    {action_button_html}
                     <p>Best regards,<br>ProcureFlow Team</p>
                 </div>
                 <div class="footer">
