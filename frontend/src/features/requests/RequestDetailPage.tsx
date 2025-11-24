@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ApprovalTimeline } from '@/components/approvals/ApprovalTimeline';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { POPreviewModal } from '@/components/pdf/POPreviewModal';
-import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download, Eye } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download, Eye, ExternalLink, FileImage } from 'lucide-react';
 
 const RequestDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -391,6 +391,128 @@ const RequestDetailPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Proforma Document - Show prominently for approvers to verify items */}
+        {request.document_file && (
+          <Card className="mb-6 border-2 border-amber-200 bg-amber-50/30">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileImage className="h-5 w-5 text-amber-600" />
+                  <CardTitle className="text-amber-900">Proforma Document</CardTitle>
+                </div>
+                {isApprover && (
+                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+                    Please verify items match this document
+                  </span>
+                )}
+              </div>
+              <CardDescription>
+                {isApprover
+                  ? 'Review this proforma invoice to verify the requested items and amounts are accurate'
+                  : 'The original proforma invoice uploaded with this request'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Document Preview */}
+                <div className="border rounded-lg overflow-hidden bg-white">
+                  {request.document_file.toLowerCase().endsWith('.pdf') ? (
+                    <div className="flex flex-col items-center justify-center py-8 bg-gray-50">
+                      <FileText className="h-16 w-16 text-red-500 mb-3" />
+                      <p className="text-sm text-gray-600 mb-4">PDF Document</p>
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => window.open(request.document_file!, '_blank')}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View PDF
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = request.document_file!;
+                            link.download = `proforma-PR-${request.id}.pdf`;
+                            link.click();
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      {/* Image Preview */}
+                      <img
+                        src={request.document_file}
+                        alt="Proforma Document"
+                        className="w-full max-h-[500px] object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(request.document_file!, '_blank')}
+                      />
+                      {/* Overlay actions */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            onClick={() => window.open(request.document_file!, '_blank')}
+                            variant="secondary"
+                            size="sm"
+                            className="bg-white/90 hover:bg-white"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Open Full Size
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = request.document_file!;
+                              link.download = `proforma-PR-${request.id}`;
+                              link.click();
+                            }}
+                            variant="secondary"
+                            size="sm"
+                            className="bg-white/90 hover:bg-white"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Verification Notice for Approvers */}
+                {isApprover && pendingApproval && (
+                  <div className="bg-amber-100 border border-amber-300 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-900">
+                          Verification Required
+                        </p>
+                        <p className="text-sm text-amber-800 mt-1">
+                          Please compare the items listed below with this proforma document to ensure:
+                        </p>
+                        <ul className="text-sm text-amber-800 mt-2 list-disc list-inside space-y-1">
+                          <li>Item descriptions match the proforma</li>
+                          <li>Quantities are accurate</li>
+                          <li>Unit prices are correct</li>
+                          <li>Total amount matches the proforma invoice</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Items */}
         <Card className="mb-6">
