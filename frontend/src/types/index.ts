@@ -186,7 +186,10 @@ export interface ReceiptDiscrepancy {
 export interface Receipt {
   id: number;
   purchase_order: number;
+  purchase_order_number?: string;
   purchase_order_details?: PurchaseOrder;
+  request_title?: string;
+  total_amount?: number | string;
   receipt_file: string;
   receipt_url: string;
   uploaded_by: number;

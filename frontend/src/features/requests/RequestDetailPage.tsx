@@ -42,6 +42,9 @@ const RequestDetailPage: React.FC = () => {
     if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
       return '/approver/dashboard';
     }
+    if (user?.role === 'FINANCE') {
+      return '/finance/requests';
+    }
     return '/staff/requests';
   };
 

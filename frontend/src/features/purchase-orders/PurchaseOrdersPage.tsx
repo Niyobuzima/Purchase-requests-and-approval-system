@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { FileText, Download, Eye, DollarSign, AlertTriangle, Upload } from 'lucide-react';
 
 export const PurchaseOrdersPage: React.FC = () => {
@@ -13,6 +14,15 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [downloading, setDownloading] = useState<number | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Helper to get base path based on user role
+  const getBasePath = () => {
+    if (user?.role === 'FINANCE') {
+      return '/finance';
+    }
+    return '/staff';
+  };
 
   useEffect(() => {
     loadPurchaseOrders();
@@ -158,7 +168,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <TableCell className="text-right">
                         <div className="flex justify-end items-center space-x-2">
                           <Button
-                            onClick={() => navigate(`/staff/purchase-orders/${po.id}`)}
+                            onClick={() => navigate(`${getBasePath()}/purchase-orders/${po.id}`)}
                             variant="default"
                             size="sm"
                           >
@@ -178,7 +188,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 {downloading === po.id ? 'Downloading...' : 'Download'}
                               </Button>
                               <Button
-                                onClick={() => navigate(`/staff/purchase-orders/${po.id}/upload-receipt`)}
+                                onClick={() => navigate(`${getBasePath()}/purchase-orders/${po.id}/upload-receipt`)}
                                 variant="outline"
                                 size="sm"
                                 className="bg-green-50 hover:bg-green-100 text-green-700 border-green-300"

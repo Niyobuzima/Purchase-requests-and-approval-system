@@ -8,6 +8,9 @@ class ReceiptSerializer(serializers.ModelSerializer):
     """Serializer for Receipt model"""
 
     purchase_order_details = PurchaseOrderSerializer(source='purchase_order', read_only=True)
+    purchase_order_number = serializers.SerializerMethodField()
+    request_title = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
     uploaded_by_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     receipt_url = serializers.SerializerMethodField()
@@ -18,7 +21,10 @@ class ReceiptSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'purchase_order',
+            'purchase_order_number',
             'purchase_order_details',
+            'request_title',
+            'total_amount',
             'receipt_file',
             'receipt_url',
             'uploaded_by',
@@ -42,6 +48,30 @@ class ReceiptSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def get_purchase_order_number(self, obj):
+        """Get the purchase order number"""
+        if obj.purchase_order:
+            return obj.purchase_order.po_number
+        return None
+
+    def get_request_title(self, obj):
+        """Get the associated request title"""
+        if obj.purchase_order and obj.purchase_order.request:
+            return obj.purchase_order.request.title
+        return None
+
+    def get_total_amount(self, obj):
+        """Get total amount from extracted receipt data or purchase order"""
+        # First try to get from extracted receipt data
+        if obj.extracted_receipt_data and 'total_amount' in obj.extracted_receipt_data:
+            return obj.extracted_receipt_data.get('total_amount')
+
+        # Fallback to purchase order total
+        if obj.purchase_order and obj.purchase_order.request:
+            return float(obj.purchase_order.request.total_estimated_cost)
+
+        return None
 
     def get_uploaded_by_name(self, obj):
         if obj.uploaded_by:

@@ -20,21 +20,12 @@ import { PurchaseOrderDetailPage } from '../features/purchase-orders/PurchaseOrd
 // Receipt Components
 import { UploadReceiptPage } from '../features/receipts/UploadReceiptPage';
 import { ReceiptValidationPage } from '../features/receipts/ReceiptValidationPage';
+import { ReceiptsListPage } from '../features/receipts/ReceiptsListPage';
 
 // Dashboard Components
 import StaffDashboard from '../features/staff/StaffDashboard';
 import { ApproverDashboard } from '../features/approver/ApproverDashboard';
-
-// Placeholder components for role-based dashboards
-
-const FinanceDashboard: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Finance Dashboard</h1>
-      <p className="text-gray-600">Coming soon - Analytics and receipt validation</p>
-    </div>
-  </div>
-);
+import { FinanceDashboardPage } from '../features/finance/FinanceDashboardPage';
 
 const UnauthorizedPage: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -150,7 +141,35 @@ const router = createBrowserRouter([
     children: [
       {
         path: 'dashboard',
-        element: <FinanceDashboard />,
+        element: <FinanceDashboardPage />,
+      },
+      {
+        path: 'requests',
+        element: <RequestsListPage />,
+      },
+      {
+        path: 'requests/:id',
+        element: <RequestDetailPage />,
+      },
+      {
+        path: 'purchase-orders',
+        element: <PurchaseOrdersPage />,
+      },
+      {
+        path: 'purchase-orders/:poId',
+        element: <PurchaseOrderDetailPage />,
+      },
+      {
+        path: 'purchase-orders/:poId/upload-receipt',
+        element: <UploadReceiptPage />,
+      },
+      {
+        path: 'receipts',
+        element: <ReceiptsListPage />,
+      },
+      {
+        path: 'receipts/:receiptId/validate',
+        element: <ReceiptValidationPage />,
       },
     ],
   },

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { handleAndFormatError } from '@/utils/errorHandler';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { PurchaseRequestListItem } from '@/types';
@@ -14,6 +15,15 @@ const RequestsListPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Helper to get base path based on user role
+  const getBasePath = () => {
+    if (user?.role === 'FINANCE') {
+      return '/finance';
+    }
+    return '/staff';
+  };
 
   const [requests, setRequests] = useState<PurchaseRequestListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +36,22 @@ const RequestsListPage: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await purchaseRequestsAPI.getMyRequests({
-        search: searchTerm || undefined,
-        status: statusFilter,
-        ordering: '-created_at',
-      });
-      setRequests(data);
+      // Finance users get ALL requests, others get only their own
+      if (user?.role === 'FINANCE') {
+        const response = await purchaseRequestsAPI.getAll({
+          search: searchTerm || undefined,
+          status: statusFilter,
+          ordering: '-created_at',
+        });
+        setRequests(response.results || response as any);
+      } else {
+        const data = await purchaseRequestsAPI.getMyRequests({
+          search: searchTerm || undefined,
+          status: statusFilter,
+          ordering: '-created_at',
+        });
+        setRequests(data);
+      }
     } catch (error) {
       const { toastData } = handleAndFormatError(error);
       toast(toastData);
@@ -119,13 +139,21 @@ const RequestsListPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Purchase Requests</h1>
-            <p className="text-gray-600 mt-1">View and manage your purchase requests</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {user?.role === 'FINANCE' ? 'Purchase Requests' : 'My Purchase Requests'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {user?.role === 'FINANCE'
+                ? 'View all purchase requests (read-only)'
+                : 'View and manage your purchase requests'}
+            </p>
           </div>
-          <Button onClick={() => navigate('/staff/requests/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </Button>
+          {user?.role !== 'FINANCE' && (
+            <Button onClick={() => navigate(`${getBasePath()}/requests/create`)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Request
+            </Button>
+          )}
         </div>
 
         {/* Search and Filters */}
@@ -180,10 +208,12 @@ const RequestsListPage: React.FC = () => {
               <p className="text-gray-600 mb-6">
                 {searchTerm
                   ? 'Try adjusting your search criteria'
+                  : user?.role === 'FINANCE'
+                  ? 'No purchase requests found'
                   : 'Get started by creating your first purchase request'}
               </p>
-              {!searchTerm && (
-                <Button onClick={() => navigate('/staff/requests/create')}>
+              {!searchTerm && user?.role !== 'FINANCE' && (
+                <Button onClick={() => navigate(`${getBasePath()}/requests/create`)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Request
                 </Button>
@@ -198,7 +228,9 @@ const RequestsListPage: React.FC = () => {
             <CardHeader>
               <CardTitle>Requests</CardTitle>
               <CardDescription>
-                A list of all your purchase requests
+                {user?.role === 'FINANCE'
+                  ? 'A list of all purchase requests in the system'
+                  : 'A list of all your purchase requests'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -259,7 +291,7 @@ const RequestsListPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          onClick={() => navigate(`/staff/requests/${request.id}`)}
+                          onClick={() => navigate(`${getBasePath()}/requests/${request.id}`)}
                           variant="ghost"
                           size="sm"
                         >
