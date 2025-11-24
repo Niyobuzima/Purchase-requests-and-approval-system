@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { purchaseOrdersAPI, type PurchaseOrderDetail } from '@/api/purchaseOrders';
 import { receiptsAPI } from '@/api/receipts';
 import { Upload, FileText, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
@@ -12,12 +13,21 @@ export const UploadReceiptPage: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrderDetail | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
+
+  // Helper to get base path based on user role
+  const getBasePath = () => {
+    if (user?.role === 'FINANCE') {
+      return '/finance';
+    }
+    return '/staff';
+  };
 
   useEffect(() => {
     loadPurchaseOrder();
@@ -30,7 +40,7 @@ export const UploadReceiptPage: React.FC = () => {
         description: 'Purchase Order ID is required',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(`${getBasePath()}/purchase-orders`);
       return;
     }
 
@@ -43,7 +53,7 @@ export const UploadReceiptPage: React.FC = () => {
         description: error.response?.data?.error || 'Failed to load purchase order',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(`${getBasePath()}/purchase-orders`);
     } finally {
       setLoading(false);
     }
@@ -120,7 +130,7 @@ export const UploadReceiptPage: React.FC = () => {
       });
 
       // Redirect to validation page or PO details
-      navigate(`/staff/purchase-orders/${purchaseOrder.id}`);
+      navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}`);
     } catch (error: any) {
       toast({
         title: 'Upload Failed',
@@ -287,7 +297,7 @@ export const UploadReceiptPage: React.FC = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate('/staff/purchase-orders')}
+              onClick={() => navigate(`${getBasePath()}/purchase-orders`)}
               disabled={uploading}
             >
               Cancel

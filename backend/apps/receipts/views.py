@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.utils import timezone
 from django.db import transaction
 
@@ -276,7 +276,7 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             'message': 'Validation complete'
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], parser_classes=[JSONParser])
     def approve(self, request, pk=None):
         """
         Approve receipt despite discrepancies (Finance only)

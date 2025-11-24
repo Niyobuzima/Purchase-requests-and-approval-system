@@ -17,12 +17,12 @@ export const purchaseRequestsAPI = {
     search?: string;
     ordering?: string;
     page?: number;
-  }): Promise<PaginatedResponse<PurchaseRequestListItem>> => {
+  }): Promise<PurchaseRequestListItem[]> => {
     const response = await axiosInstance.get<PaginatedResponse<PurchaseRequestListItem>>(
       '/requests/',
       { params }
     );
-    return response.data;
+    return response.data.results || [];
   },
 
   /**

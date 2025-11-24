@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { purchaseOrdersAPI, type PurchaseOrderDetail } from '@/api/purchaseOrders';
 import { receiptsAPI } from '@/api/receipts';
 import type { Receipt } from '@/types';
@@ -27,11 +28,20 @@ export const PurchaseOrderDetailPage: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrderDetail | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+
+  // Helper to get base path based on user role
+  const getBasePath = () => {
+    if (user?.role === 'FINANCE') {
+      return '/finance';
+    }
+    return '/staff';
+  };
 
   useEffect(() => {
     loadPurchaseOrderDetails();
@@ -44,7 +54,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         description: 'Purchase Order ID is required',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(`${getBasePath()}/purchase-orders`);
       return;
     }
 
@@ -56,7 +66,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         description: 'Invalid Purchase Order ID',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(`${getBasePath()}/purchase-orders`);
       return;
     }
 
@@ -75,7 +85,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         description: error.response?.data?.error || 'Failed to load purchase order details',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(`${getBasePath()}/purchase-orders`);
     } finally {
       setLoading(false);
     }
@@ -202,7 +212,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
               )}
             </Button>
             <Button
-              onClick={() => navigate(`/staff/purchase-orders/${purchaseOrder.id}/upload-receipt`)}
+              onClick={() => navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)}
               className="bg-green-600 hover:bg-green-700"
             >
               <Upload className="h-4 w-4 mr-2" />
@@ -331,7 +341,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                   <p className="text-gray-600 mb-4">No receipts have been uploaded yet</p>
                   <Button
                     onClick={() =>
-                      navigate(`/staff/purchase-orders/${purchaseOrder.id}/upload-receipt`)
+                      navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)
                     }
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"

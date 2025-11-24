@@ -33,6 +33,14 @@ export const ReceiptValidationPage: React.FC = () => {
   const [approving, setApproving] = useState(false);
   const [financeComments, setFinanceComments] = useState('');
 
+  // Helper function to get the appropriate back navigation path
+  const getBackPath = () => {
+    if (user?.role === 'FINANCE') {
+      return '/finance/dashboard';
+    }
+    return '/staff/purchase-orders';
+  };
+
   useEffect(() => {
     loadReceiptDetails();
   }, [receiptId]);
@@ -44,7 +52,7 @@ export const ReceiptValidationPage: React.FC = () => {
         description: 'Receipt ID is required',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(getBackPath());
       return;
     }
 
@@ -56,7 +64,7 @@ export const ReceiptValidationPage: React.FC = () => {
         description: 'Invalid receipt ID',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(getBackPath());
       return;
     }
 
@@ -76,7 +84,7 @@ export const ReceiptValidationPage: React.FC = () => {
         description: error.response?.data?.error || 'Failed to load receipt details',
         variant: 'destructive',
       });
-      navigate('/staff/purchase-orders');
+      navigate(getBackPath());
     } finally {
       setLoading(false);
     }
@@ -200,9 +208,9 @@ export const ReceiptValidationPage: React.FC = () => {
             <p className="text-gray-600 mb-6">
               The receipt you're looking for doesn't exist or you don't have permission to view it.
             </p>
-            <Button onClick={() => navigate('/staff/purchase-orders')}>
+            <Button onClick={() => navigate(getBackPath())}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Purchase Orders
+              {user?.role === 'FINANCE' ? 'Back to Dashboard' : 'Back to Purchase Orders'}
             </Button>
           </CardContent>
         </Card>
@@ -216,11 +224,11 @@ export const ReceiptValidationPage: React.FC = () => {
       <div className="mb-6">
         <Button
           variant="ghost"
-          onClick={() => navigate(`/staff/purchase-orders/${receipt.purchase_order}`)}
+          onClick={() => navigate(getBackPath())}
           className="mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to PO Details
+          {user?.role === 'FINANCE' ? 'Back to Dashboard' : 'Back to PO Details'}
         </Button>
 
         <div className="flex items-center justify-between">

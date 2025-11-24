@@ -16,6 +16,7 @@ import {
   FileText,
   LayoutDashboard,
   ShoppingCart,
+  Receipt,
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -108,6 +109,35 @@ const Navbar: React.FC = () => {
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
                       Purchase Orders
+                    </Button>
+                  </>
+                )}
+
+                {user.role === 'FINANCE' && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/finance/requests')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Requests
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/finance/purchase-orders')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Purchase Orders
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/finance/receipts')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <Receipt className="h-4 w-4 mr-2" />
+                      Receipts
                     </Button>
                   </>
                 )}
