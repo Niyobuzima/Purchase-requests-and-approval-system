@@ -189,7 +189,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_requests(self, request):
-        """Get current user's requests"""
+        """Get current user's requests with pagination"""
         queryset = PurchaseRequest.objects.filter(
             requester=request.user
         ).select_related(
@@ -202,7 +202,13 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         # Apply filters
         queryset = self.filter_queryset(queryset)
 
-        # Use list serializer explicitly
+        # Paginate the queryset
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = PurchaseRequestListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # Fallback for non-paginated requests
         serializer = PurchaseRequestListSerializer(queryset, many=True)
         return Response(serializer.data)
 

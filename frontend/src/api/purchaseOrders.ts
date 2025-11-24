@@ -23,6 +23,7 @@ export const purchaseOrdersAPI = {
   getAll: async (params?: {
     search?: string;
     ordering?: string;
+    request?: number;
     page?: number;
     page_size?: number;
   }): Promise<PaginatedResponse<PurchaseOrder>> => {

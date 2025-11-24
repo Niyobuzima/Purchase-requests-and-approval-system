@@ -165,7 +165,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
             <p className="text-gray-600 mb-6">
               The purchase order you're looking for doesn't exist or you don't have permission to view it.
             </p>
-            <Button onClick={() => navigate('/staff/purchase-orders')}>
+            <Button onClick={() => navigate(`${getBasePath()}/purchase-orders`)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Purchase Orders
             </Button>
@@ -181,7 +181,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
       <div className="mb-6">
         <Button
           variant="ghost"
-          onClick={() => navigate('/staff/purchase-orders')}
+          onClick={() => navigate(`${getBasePath()}/purchase-orders`)}
           className="mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -374,7 +374,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => navigate(`/staff/receipts/${receipt.id}/validate`)}
+                          onClick={() => navigate(`${getBasePath()}/receipts/${receipt.id}/validate`)}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Validate

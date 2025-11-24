@@ -90,11 +90,15 @@ const RequestDetailPage: React.FC = () => {
         // Fetch purchase order if request is approved
         if (data.status === 'APPROVED') {
           try {
-            const posResponse = await purchaseOrdersAPI.getAll();
-            const linkedPO = posResponse.results.find(po => po.request === requestId);
-            setPurchaseOrder(linkedPO || null);
+            const posResponse = await purchaseOrdersAPI.getAll({ request: requestId });
+            if (posResponse.results && posResponse.results.length > 0) {
+              setPurchaseOrder(posResponse.results[0]);
+            } else {
+              setPurchaseOrder(null);
+            }
           } catch (err) {
             console.log('No purchase order found for this request');
+            setPurchaseOrder(null);
           }
         }
       } catch (error) {
