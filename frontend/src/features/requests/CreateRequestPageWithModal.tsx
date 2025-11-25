@@ -9,13 +9,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { RequestItem, CreatePurchaseRequestData, ExtractedDocumentData } from '@/types';
-import { Plus, Edit, Trash2, DollarSign, Package, Upload as UploadIcon, FileText, Sparkles } from 'lucide-react';
+import { Plus, Edit, Trash2, DollarSign, Package, FileText, Sparkles, PenLine, Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import AddItemModal from './components/AddItemModal';
 import FileUpload from '@/components/uploads/FileUpload';
+
+type Step = 'upload' | 'choose-method' | 'processing' | 'form';
 
 const CreateRequestPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Step tracking
+  const [step, setStep] = useState<Step>('upload');
+  const [useAI, setUseAI] = useState<boolean | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -30,20 +36,18 @@ const CreateRequestPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedDocumentData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState<number | null>(null);
+  const [processingStep, setProcessingStep] = useState<string>('');
 
   // Add new item
   const handleAddItem = (item: Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>) => {
     if (editingIndex !== undefined) {
-      // Update existing item
       const updatedItems = [...items];
       updatedItems[editingIndex] = item;
       setItems(updatedItems);
       setEditingIndex(undefined);
     } else {
-      // Add new item
       setItems([...items, item]);
     }
   };
@@ -56,14 +60,6 @@ const CreateRequestPage: React.FC = () => {
 
   // Remove item
   const handleRemoveItem = (index: number) => {
-    if (items.length === 1) {
-      toast({
-        title: 'Cannot remove',
-        description: 'At least one item is required',
-        variant: 'destructive',
-      });
-      return;
-    }
     setItems(items.filter((_, i) => i !== index));
   };
 
@@ -81,81 +77,68 @@ const CreateRequestPage: React.FC = () => {
     setExtractedData(null);
   };
 
-  // Upload document
+  // Upload document and go to method selection
   const handleUploadDocument = async () => {
     if (!selectedFile) {
       toast({
         title: 'No file selected',
-        description: 'Please select a file to upload',
+        description: 'Please select a proforma/invoice file to upload',
         variant: 'destructive',
       });
       return;
     }
 
-    // Create draft request first if not already created
-    if (!currentRequestId) {
-      setUploading(true);
-      try {
-        // Create minimal draft request without items (AI will populate items after processing)
-        const data: CreatePurchaseRequestData = {
-          title: title.trim() || 'New Purchase Request',
-          description: description || 'Processing uploaded document...',
-          status: 'DRAFT',
-          items: [], // Empty items for DRAFT - will be filled by AI extraction
-        };
+    setUploading(true);
+    try {
+      // Create draft request
+      const data: CreatePurchaseRequestData = {
+        title: 'New Purchase Request',
+        description: 'Processing uploaded document...',
+        status: 'DRAFT',
+        items: [],
+      };
 
-        const response = await purchaseRequestsAPI.create(data);
-        setCurrentRequestId(response.id);
+      const response = await purchaseRequestsAPI.create(data);
+      setCurrentRequestId(response.id);
 
-        // Now upload document
-        const uploadResponse = await purchaseRequestsAPI.uploadDocument(response.id, selectedFile);
-        setUploadedFileUrl(uploadResponse.document_url || null);
+      // Upload document
+      const uploadResponse = await purchaseRequestsAPI.uploadDocument(response.id, selectedFile);
+      setUploadedFileUrl(uploadResponse.document_url || null);
 
-        toast({
-          title: 'Document uploaded',
-          description: 'Document uploaded successfully. Processing with AI...',
-        });
+      toast({
+        title: 'Document uploaded',
+        description: 'Your proforma has been uploaded successfully',
+      });
 
-        // Automatically trigger AI processing
-        await processDocumentAfterUpload(response.id);
-      } catch (error) {
-        const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
-        toast(toastData);
-      } finally {
-        setUploading(false);
-      }
-    } else {
-      // Request already exists, just upload
-      setUploading(true);
-      try {
-        const uploadResponse = await purchaseRequestsAPI.uploadDocument(currentRequestId, selectedFile);
-        setUploadedFileUrl(uploadResponse.document_url || null);
-
-        toast({
-          title: 'Document uploaded',
-          description: 'Document uploaded successfully. Processing with AI...',
-        });
-
-        // Automatically trigger AI processing
-        await processDocumentAfterUpload(currentRequestId);
-      } catch (error) {
-        const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
-        toast(toastData);
-      } finally {
-        setUploading(false);
-      }
+      // Move to method selection
+      setStep('choose-method');
+    } catch (error) {
+      const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
+      toast(toastData);
+    } finally {
+      setUploading(false);
     }
   };
 
-  // Process document automatically after upload
-  const processDocumentAfterUpload = async (requestId: number) => {
-    setProcessing(true);
+  // Process with AI
+  const handleProcessWithAI = async () => {
+    if (!currentRequestId) return;
+
+    setUseAI(true);
+    setStep('processing');
+    setProcessingStep('Analyzing document...');
+
     try {
-      const response = await purchaseRequestsAPI.processDocument(requestId);
+      // Simulate progress steps
+      setTimeout(() => setProcessingStep('Extracting vendor information...'), 1500);
+      setTimeout(() => setProcessingStep('Identifying line items...'), 3000);
+      setTimeout(() => setProcessingStep('Calculating totals...'), 4500);
+
+      const response = await purchaseRequestsAPI.processDocument(currentRequestId);
       setExtractedData(response.extracted_data);
 
       if (response.document_processed && response.extracted_data.success) {
-        // Auto-fill form with extracted data
+        // Auto-fill form
         if (response.extracted_data.vendor_name) {
           setTitle(response.extracted_data.vendor_name);
         }
@@ -164,7 +147,6 @@ const CreateRequestPage: React.FC = () => {
           setDescription(`Invoice #${response.extracted_data.invoice_number}${response.extracted_data.date ? ` - ${response.extracted_data.date}` : ''}`);
         }
 
-        // Set extracted items
         if (response.extracted_data.items && response.extracted_data.items.length > 0) {
           const extractedItems = response.extracted_data.items.map((item) => ({
             description: item.description,
@@ -178,74 +160,30 @@ const CreateRequestPage: React.FC = () => {
 
         toast({
           title: 'AI Processing Complete',
-          description: `Successfully extracted ${response.extracted_data.items?.length || 0} items from the invoice. Review and submit when ready.`,
+          description: `Extracted ${response.extracted_data.items?.length || 0} items. Review and submit when ready.`,
         });
       } else {
         toast({
-          title: 'Processing failed',
-          description: response.extracted_data.error || 'Could not extract data from document. You can add items manually.',
+          title: 'Extraction issue',
+          description: response.extracted_data.error || 'Could not extract all data. Please fill in missing details.',
           variant: 'destructive',
         });
       }
+
+      setStep('form');
     } catch (error) {
       const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
       toast(toastData);
+      setStep('form');
     } finally {
-      setProcessing(false);
+      setProcessingStep('');
     }
   };
 
-  // Process document with AI
-  const handleProcessDocument = async () => {
-    if (!currentRequestId || !uploadedFileUrl) {
-      toast({
-        title: 'No document uploaded',
-        description: 'Please upload a document first',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setProcessing(true);
-    try {
-      const response = await purchaseRequestsAPI.processDocument(currentRequestId);
-      setExtractedData(response.extracted_data);
-
-      if (response.document_processed && response.extracted_data.success) {
-        // Pre-fill form with extracted data
-        if (response.extracted_data.vendor_name && !title.trim()) {
-          setTitle(response.extracted_data.vendor_name);
-        }
-
-        // Add extracted items
-        if (response.extracted_data.items && response.extracted_data.items.length > 0) {
-          const extractedItems = response.extracted_data.items.map((item) => ({
-            description: item.description,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            unit_of_measure: 'unit',
-            notes: '',
-          }));
-          setItems(extractedItems);
-        }
-
-        toast({
-          title: 'Document processed',
-          description: `Successfully extracted ${response.extracted_data.items?.length || 0} items from the document`,
-        });
-      } else {
-        toast({
-          title: 'Processing failed',
-          description: response.extracted_data.error || 'Could not extract data from document',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
-      toast(toastData);
-    } finally {
-      setProcessing(false);
-    }
+  // Skip AI, enter manually
+  const handleManualEntry = () => {
+    setUseAI(false);
+    setStep('form');
   };
 
   // Calculate subtotal for an item
@@ -302,15 +240,8 @@ const CreateRequestPage: React.FC = () => {
         })),
       };
 
-      let responseId = currentRequestId;
-
       if (currentRequestId) {
-        // Update existing draft request
         await purchaseRequestsAPI.update(currentRequestId, data);
-      } else {
-        // Create new request
-        const response = await purchaseRequestsAPI.create(data);
-        responseId = response.id;
       }
 
       toast({
@@ -318,7 +249,7 @@ const CreateRequestPage: React.FC = () => {
         description: 'Purchase request saved as draft successfully',
       });
 
-      navigate(`/staff/requests/${responseId}`);
+      navigate(`/staff/requests/${currentRequestId}`);
     } catch (error) {
       const { toastData } = handleAndFormatError(ErrorHandlers.validation(error));
       toast(toastData);
@@ -346,19 +277,31 @@ const CreateRequestPage: React.FC = () => {
         })),
       };
 
-      let responseId = currentRequestId;
-
       if (currentRequestId) {
-        // Update existing draft request
-        await purchaseRequestsAPI.update(currentRequestId, data);
-      } else {
-        // Create new request
-        const response = await purchaseRequestsAPI.create(data);
-        responseId = response.id;
-      }
+        try {
+          // Try to update first (only works for DRAFT requests)
+          await purchaseRequestsAPI.update(currentRequestId, data);
+          // Then submit
+          await purchaseRequestsAPI.submit(currentRequestId);
+        } catch (updateError: unknown) {
+          // Check if request was already submitted (not in DRAFT status)
+          const errorMessage = updateError instanceof Error ? updateError.message : String(updateError);
+          const axiosError = updateError as { response?: { data?: { error?: string; detail?: string } } };
+          const serverMessage = axiosError?.response?.data?.error || axiosError?.response?.data?.detail || '';
 
-      // Submit for approval
-      await purchaseRequestsAPI.submit(responseId);
+          if (serverMessage.toLowerCase().includes('draft') || errorMessage.toLowerCase().includes('draft')) {
+            // Request was already submitted, just navigate
+            toast({
+              title: 'Request already submitted',
+              description: 'This request has already been submitted for approval',
+            });
+            navigate('/staff/requests');
+            return;
+          }
+          // Re-throw other errors
+          throw updateError;
+        }
+      }
 
       toast({
         title: 'Request submitted',
@@ -379,300 +322,451 @@ const CreateRequestPage: React.FC = () => {
       <div className="max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Create Purchase Request</h1>
-          <p className="text-gray-600 mt-1">Upload an invoice/quotation and let AI extract the details automatically</p>
+          <p className="text-gray-600 mt-1">
+            {step === 'upload' && 'Upload your proforma/invoice to get started'}
+            {step === 'choose-method' && 'Choose how to fill in the details'}
+            {step === 'processing' && 'AI is analyzing your document...'}
+            {step === 'form' && 'Review and complete your purchase request'}
+          </p>
         </div>
 
-        {/* Document Upload Section - FIRST */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-600 font-semibold text-sm">
-                1
+        {/* Step 1: Upload Document */}
+        {step === 'upload' && (
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                <Upload className="h-8 w-8 text-purple-600" />
               </div>
-              <span>Upload Invoice/Quotation</span>
-            </CardTitle>
-            <CardDescription>
-              Upload your invoice or quotation file and AI will automatically extract all details
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FileUpload
-              onFileSelect={handleFileSelect}
-              onFileRemove={handleFileRemove}
-              accept=".pdf,.jpg,.jpeg,.png"
-              maxSize={10485760}
-              disabled={uploading || processing}
-              selectedFile={selectedFile}
-              uploadedFileUrl={uploadedFileUrl}
-            />
-
-            {selectedFile && !uploadedFileUrl && (
-              <Button
-                onClick={handleUploadDocument}
-                disabled={uploading || processing}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-              >
-                {uploading || processing ? (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                    {uploading ? 'Uploading...' : 'Processing with AI...'}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Upload & Process with AI
-                  </>
-                )}
-              </Button>
-            )}
-
-            {extractedData && extractedData.success && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <Sparkles className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-green-900">
-                      AI Extraction Successful
-                    </h4>
-                    <div className="mt-2 space-y-1">
-                      <p className="text-sm text-green-700">
-                        Extracted {extractedData.items?.length || 0} item(s) from the document
-                      </p>
-                      {extractedData.vendor_name && (
-                        <p className="text-sm text-green-700">
-                          <span className="font-medium">Vendor:</span> {extractedData.vendor_name}
-                        </p>
-                      )}
-                      {extractedData.total_amount && (
-                        <p className="text-sm text-green-700">
-                          <span className="font-medium">Total:</span> ${extractedData.total_amount.toFixed(2)}
-                        </p>
-                      )}
-                      {extractedData.invoice_number && (
-                        <p className="text-sm text-green-700">
-                          <span className="font-medium">Invoice #:</span> {extractedData.invoice_number}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {extractedData && !extractedData.success && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <FileText className="h-5 w-5 text-red-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-red-900">
-                      Extraction Failed
-                    </h4>
-                    <p className="text-sm text-red-700 mt-1">
-                      {extractedData.error || 'Could not extract data from the document'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Request Details Section - SECOND (after AI extraction) */}
-        {extractedData && extractedData.success && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-semibold text-sm">
-                  2
-                </div>
-                <span>Review & Edit Details</span>
-              </CardTitle>
-              <CardDescription>
-                AI has extracted the information. You can edit if needed.
+              <CardTitle className="text-2xl">Upload Proforma/Invoice</CardTitle>
+              <CardDescription className="text-base">
+                A proforma or invoice document is required for all purchase requests
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title / Vendor Name *</Label>
-                <Input
-                  id="title"
-                  placeholder="e.g., ABC Supplies Inc."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                />
+            <CardContent className="space-y-6">
+              <FileUpload
+                onFileSelect={handleFileSelect}
+                onFileRemove={handleFileRemove}
+                accept=".pdf,.jpg,.jpeg,.png"
+                maxSize={10485760}
+                disabled={uploading}
+                selectedFile={selectedFile}
+                uploadedFileUrl={uploadedFileUrl}
+              />
+
+              {selectedFile && (
+                <Button
+                  onClick={handleUploadDocument}
+                  disabled={uploading}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  size="lg"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-5 w-5 mr-2" />
+                      Upload Document
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardContent>
+            <CardFooter className="justify-center">
+              <p className="text-sm text-gray-500">
+                Supported formats: PDF, JPG, PNG (max 10MB)
+              </p>
+            </CardFooter>
+          </Card>
+        )}
+
+        {/* Step 2: Choose Method */}
+        {step === 'choose-method' && (
+          <div className="space-y-6">
+            {/* Uploaded file preview */}
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  <div className="flex-1">
+                    <p className="font-medium text-green-900">Document Uploaded Successfully</p>
+                    <p className="text-sm text-green-700">{selectedFile?.name}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStep('upload');
+                      setSelectedFile(null);
+                      setUploadedFileUrl(null);
+                    }}
+                  >
+                    Change File
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">How would you like to proceed?</h2>
+              <p className="text-gray-600">Choose AI extraction for faster entry, or fill in manually</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-purple-400"
+                onClick={handleProcessWithAI}
+              >
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                    <Sparkles className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <CardTitle className="text-xl">Use AI Extraction</CardTitle>
+                  <CardDescription className="text-base">
+                    Let AI automatically read and extract all details
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <ul className="text-sm text-gray-600 space-y-2">
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      Auto-extracts vendor name
+                    </li>
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      Reads all line items & prices
+                    </li>
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      Calculates totals automatically
+                    </li>
+                  </ul>
+                </CardContent>
+                <CardFooter className="justify-center">
+                  <Button className="bg-purple-600 hover:bg-purple-700 w-full">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Extract with AI
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-blue-400"
+                onClick={handleManualEntry}
+              >
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                    <PenLine className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <CardTitle className="text-xl">Fill in Manually</CardTitle>
+                  <CardDescription className="text-base">
+                    Enter all details yourself while viewing the document
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <ul className="text-sm text-gray-600 space-y-2">
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                      Full control over all fields
+                    </li>
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                      Add items one by one
+                    </li>
+                    <li className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                      Good for complex documents
+                    </li>
+                  </ul>
+                </CardContent>
+                <CardFooter className="justify-center">
+                  <Button variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50 w-full">
+                    <PenLine className="h-4 w-4 mr-2" />
+                    Enter Manually
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: AI Processing */}
+        {step === 'processing' && (
+          <Card className="max-w-lg mx-auto">
+            <CardContent className="py-12 text-center">
+              <div className="mx-auto w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-6">
+                <Sparkles className="h-10 w-10 text-purple-600 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">AI is Processing</h2>
+              <p className="text-gray-600 mb-6">{processingStep || 'Analyzing your document...'}</p>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+                  <span className="text-sm text-gray-600">This may take a few seconds...</span>
+                </div>
+
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full animate-pulse"
+                    style={{ width: '70%' }}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Invoice details, notes..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                />
+              <div className="mt-8 p-4 bg-purple-50 rounded-lg">
+                <p className="text-sm text-purple-800">
+                  <strong>Tip:</strong> AI extraction works best with clear, high-quality scans of invoices and quotations.
+                </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Items Section - THIRD (extracted items, editable) */}
-        {extractedData && extractedData.success && (
-          <Card className="mt-6">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-600 font-semibold text-sm">
-                      3
+        {/* Step 4: Form */}
+        {step === 'form' && (
+          <>
+            {/* Document Info */}
+            <Card className="mb-6 bg-gray-50">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-6 w-6 text-gray-600" />
+                    <div>
+                      <p className="font-medium text-gray-900">Attached Document</p>
+                      <p className="text-sm text-gray-600">{selectedFile?.name}</p>
                     </div>
-                    <span>Review Items</span>
-                  </CardTitle>
-                  <CardDescription>Extracted items from the invoice. You can edit or add more.</CardDescription>
+                  </div>
+                  {uploadedFileUrl && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={uploadedFileUrl} target="_blank" rel="noopener noreferrer">
+                        View Document
+                      </a>
+                    </Button>
+                  )}
                 </div>
-                <Button
-                  onClick={() => {
-                    setEditingIndex(undefined);
-                    setIsModalOpen(true);
-                  }}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {items.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No items extracted</h3>
-                  <p className="text-gray-600 mb-4">
-                    AI couldn't extract items. Click "Add Item" to add them manually.
-                  </p>
+              </CardContent>
+            </Card>
+
+            {/* AI Extraction Status */}
+            {useAI && extractedData && (
+              <Card className={`mb-6 ${extractedData.success ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    {extractedData.success ? (
+                      <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`font-medium ${extractedData.success ? 'text-green-900' : 'text-amber-900'}`}>
+                        {extractedData.success
+                          ? `AI Extracted ${extractedData.items?.length || 0} Items`
+                          : 'AI Could Not Extract All Data'}
+                      </p>
+                      <p className={`text-sm ${extractedData.success ? 'text-green-700' : 'text-amber-700'}`}>
+                        {extractedData.success
+                          ? 'Review the details below and make any necessary changes.'
+                          : extractedData.error || 'Please fill in the missing details manually.'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Request Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <PenLine className="h-5 w-5 text-blue-600" />
+                  <span>Request Details</span>
+                </CardTitle>
+                <CardDescription>
+                  {useAI && extractedData?.success
+                    ? 'AI has extracted the information. You can edit if needed.'
+                    : 'Enter the details for your purchase request'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title / Vendor Name *</Label>
+                  <Input
+                    id="title"
+                    placeholder="e.g., ABC Supplies Inc. - Office Equipment"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Additional details, invoice number, notes..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Items Section */}
+            <Card className="mt-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-green-600" />
+                      <span>Items</span>
+                    </CardTitle>
+                    <CardDescription>
+                      {items.length > 0
+                        ? `${items.length} item(s) added. You can edit or add more.`
+                        : 'Add the items from your proforma'}
+                    </CardDescription>
+                  </div>
                   <Button
                     onClick={() => {
                       setEditingIndex(undefined);
                       setIsModalOpen(true);
                     }}
-                    variant="outline"
+                    size="sm"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Item Manually
+                    Add Item
                   </Button>
                 </div>
-              ) : (
-              <div className="space-y-3">
-                {items.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-2">
+              </CardHeader>
+              <CardContent>
+                {items.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                    <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No items yet</h3>
+                    <p className="text-gray-600 mb-4">
+                      Add the items from your proforma/invoice
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setEditingIndex(undefined);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Item
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-start justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow"
+                      >
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 truncate">{item.description}</h4>
-                          {item.notes && (
-                            <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex-shrink-0 text-right">
-                          <div className="flex items-center text-lg font-bold text-green-600">
-                            <DollarSign className="h-4 w-4" />
-                            {calculateSubtotal(item).toFixed(2)}
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{item.description}</h4>
+                              {item.notes && (
+                                <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <div className="flex items-center text-lg font-bold text-green-600">
+                                <DollarSign className="h-4 w-4" />
+                                {calculateSubtotal(item).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                            <span className="flex items-center gap-1">
+                              <span className="text-gray-500">Qty:</span>
+                              <span className="font-medium text-gray-900">{item.quantity}</span>
+                              <span className="text-gray-500">{item.unit_of_measure}</span>
+                            </span>
+                            <span className="text-gray-300">•</span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-gray-500">Unit Price:</span>
+                              <span className="font-medium text-gray-900">
+                                ${typeof item.unit_price === 'number' ? item.unit_price.toFixed(2) : item.unit_price}
+                              </span>
+                            </span>
                           </div>
                         </div>
+                        <div className="flex items-center gap-1 ml-4 flex-shrink-0">
+                          <Button
+                            onClick={() => handleEditItem(index)}
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            title="Edit item"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleRemoveItem(index)}
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Remove item"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <span className="text-gray-500">Qty:</span>
-                          <span className="font-medium text-gray-900">{item.quantity}</span>
-                          <span className="text-gray-500">{item.unit_of_measure}</span>
-                        </span>
-                        <span className="text-gray-300">•</span>
-                        <span className="flex items-center gap-1">
-                          <span className="text-gray-500">Unit Price:</span>
-                          <span className="font-medium text-gray-900">
-                            ${typeof item.unit_price === 'number' ? item.unit_price.toFixed(2) : item.unit_price}
-                          </span>
-                        </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+              {items.length > 0 && (
+                <CardFooter className="border-t bg-gray-50 px-6 py-4">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">{items.length}</span> item(s)
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-base font-semibold text-gray-700">Total Amount:</span>
+                      <div className="flex items-center text-2xl font-bold text-green-600">
+                        <DollarSign className="h-6 w-6" />
+                        <span>{calculateTotal().toFixed(2)}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 ml-4 flex-shrink-0">
-                      <Button
-                        onClick={() => handleEditItem(index)}
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        title="Edit item"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        onClick={() => handleRemoveItem(index)}
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        title="Remove item"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-            <CardFooter className="border-t bg-gray-50 px-6 py-4">
-              <div className="flex items-center justify-between w-full">
-                <div className="text-sm text-gray-600">
-                  <span className="font-medium">{items.length}</span> item(s)
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-base font-semibold text-gray-700">Total Amount:</span>
-                  <div className="flex items-center text-2xl font-bold text-green-600">
-                    <DollarSign className="h-6 w-6" />
-                    <span>{calculateTotal().toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            </CardFooter>
-          </Card>
-        )}
+                </CardFooter>
+              )}
+            </Card>
 
-        {/* Actions - Only show after AI processing */}
-        {extractedData && extractedData.success && (
-          <div className="flex items-center justify-between mt-6">
-            <Button
-              onClick={() => navigate('/staff/requests')}
-              variant="outline"
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <div className="flex space-x-3">
+            {/* Actions */}
+            <div className="flex items-center justify-between mt-6">
               <Button
-                onClick={handleSaveDraft}
+                onClick={() => navigate('/staff/requests')}
                 variant="outline"
                 disabled={loading}
               >
-                Save as Draft
+                Cancel
               </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {loading ? 'Submitting...' : 'Submit for Approval'}
-              </Button>
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleSaveDraft}
+                  variant="outline"
+                  disabled={loading || items.length === 0}
+                >
+                  Save as Draft
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={loading || items.length === 0}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {loading ? 'Submitting...' : 'Submit for Approval'}
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 

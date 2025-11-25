@@ -1,4 +1,3 @@
-import React from 'react';
 import { useToast, type ToastProps } from './use-toast';
 import { cn } from '@/lib/utils';
 

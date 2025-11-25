@@ -80,8 +80,9 @@ const RequestsListPage: React.FC = () => {
         setTotalCount(response.count || 0);
         setTotalPages(Math.ceil((response.count || 0) / pageSize));
       } else {
-        setRequests(response || []);
-        setTotalCount((response || []).length);
+        const requestsArray = Array.isArray(response) ? response : [];
+        setRequests(requestsArray as PurchaseRequestListItem[]);
+        setTotalCount(requestsArray.length);
         setTotalPages(1);
       }
     } catch (error: any) {

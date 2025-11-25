@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/components/ui/use-toast';
 import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
-import type { RequestItem, PurchaseRequest } from '@/types';
+import type { RequestItem } from '@/types';
 import { Plus, Edit, Trash2, DollarSign, Package, ArrowLeft } from 'lucide-react';
 import AddItemModal from './components/AddItemModal';
 
