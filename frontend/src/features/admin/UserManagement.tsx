@@ -305,7 +305,7 @@ export const UserManagement: React.FC = () => {
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                           <span className="text-sm font-semibold text-gray-600">
-                            {user.first_name?.[0] || user.email[0].toUpperCase()}
+                            {user.first_name?.[0] || user.email?.[0]?.toUpperCase() || '?'}
                           </span>
                         </div>
                         <div>

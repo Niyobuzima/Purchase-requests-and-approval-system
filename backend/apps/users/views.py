@@ -219,7 +219,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
 
         # Prevent admin from demoting themselves
-        if instance == request.user and request.data.get('role') != User.Role.ADMIN:
+        if instance == request.user and 'role' in request.data and request.data.get('role') != User.Role.ADMIN:
             return Response(
                 {'error': 'You cannot change your own role'},
                 status=status.HTTP_400_BAD_REQUEST

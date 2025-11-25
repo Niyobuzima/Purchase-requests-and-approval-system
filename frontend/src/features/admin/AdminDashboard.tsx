@@ -147,26 +147,29 @@ export const AdminDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {Object.entries(stats.users_by_role).map(([role, count]) => (
-                  <div key={role} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Badge className={ROLE_COLORS[role] || 'bg-gray-100 text-gray-800'}>
-                        {ROLE_LABELS[role] || role}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-purple-600 h-2 rounded-full"
-                          style={{
-                            width: `${(count / stats.total_users) * 100}%`,
-                          }}
-                        ></div>
+                {Object.entries(stats.users_by_role).map(([role, count]) => {
+                  const percent = stats.total_users ? (count / stats.total_users) * 100 : 0;
+                  return (
+                    <div key={role} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <Badge className={ROLE_COLORS[role] || 'bg-gray-100 text-gray-800'}>
+                          {ROLE_LABELS[role] || role}
+                        </Badge>
                       </div>
-                      <span className="font-semibold text-sm w-8 text-right">{count}</span>
+                      <div className="flex items-center space-x-4">
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-600 h-2 rounded-full"
+                            style={{
+                              width: `${percent}%`,
+                            }}
+                          ></div>
+                        </div>
+                        <span className="font-semibold text-sm w-8 text-right">{count}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
