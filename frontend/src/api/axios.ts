@@ -1,5 +1,6 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { jwtDecode } from 'jwt-decode';
+import { UnifiedAPIResponse } from '@/types/errors';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -9,6 +10,46 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+/**
+ * Check if response follows the unified API response format
+ */
+function isUnifiedResponse(data: any): data is UnifiedAPIResponse {
+  return (
+    data &&
+    typeof data === 'object' &&
+    'success' in data &&
+    typeof data.success === 'boolean'
+  );
+}
+
+/**
+ * Extract data from unified response format
+ * Returns the original data if it's not a unified response (backwards compatibility)
+ */
+function extractResponseData(response: AxiosResponse): AxiosResponse {
+  const data = response.data;
+
+  // If it's a unified response format with success: true
+  if (isUnifiedResponse(data) && data.success) {
+    // For paginated responses, restructure to match expected format
+    if (data.count !== undefined && data.data !== undefined) {
+      response.data = {
+        results: data.data,
+        count: data.count,
+        next: null,
+        previous: null,
+      };
+    }
+    // For non-paginated responses, extract the data
+    else if (data.data !== undefined) {
+      response.data = data.data;
+    }
+    // If no data field but success is true, keep as is (e.g., for messages)
+  }
+
+  return response;
+}
 
 // Request interceptor - attach access token and handle FormData
 axiosInstance.interceptors.request.use(
@@ -28,9 +69,9 @@ axiosInstance.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
-// Response interceptor - handle token refresh
+// Response interceptor - handle unified response format and token refresh
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => extractResponseData(response),
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 

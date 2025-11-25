@@ -1,17 +1,25 @@
-from rest_framework import viewsets, status, filters
+"""
+Purchase Order Views.
+
+This module handles purchase order operations including:
+- Viewing purchase orders
+- Downloading PO PDF files
+"""
+
+from rest_framework import viewsets, filters
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from django.http import HttpResponse, FileResponse
-from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+
 from apps.purchase_orders.models import PurchaseOrder
 from apps.purchase_orders.serializers import PurchaseOrderSerializer, PurchaseOrderListSerializer
 from apps.purchase_orders.filters import PurchaseOrderFilter
 import requests
-import logging
 
-logger = logging.getLogger(__name__)
+# Import core utilities
+from core.responses import APIResponse
+from core.logging_utils import app_logger, log_view_action, audit_log
 
 
 class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -52,6 +60,7 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
         return PurchaseOrderSerializer
 
     @action(detail=True, methods=['get'])
+    @log_view_action("Download PO PDF")
     def download(self, request, pk=None):
         """
         Download PDF file for a purchase order
@@ -60,9 +69,10 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
         po = self.get_object()
 
         if not po.pdf_file:
-            return Response(
-                {'error': 'PDF file not available for this purchase order'},
-                status=status.HTTP_404_NOT_FOUND
+            return APIResponse.not_found(
+                message="PDF file not available for this purchase order",
+                resource_type="PDF",
+                resource_id=po.po_number
             )
 
         try:
@@ -70,6 +80,24 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
             # timeout=(5, 10) means: 5 seconds for connection, 10 seconds for read
             response = requests.get(po.pdf_file, stream=True, timeout=(5, 10))
             response.raise_for_status()
+
+            # Audit log for PDF download
+            audit_log(
+                action='DOWNLOAD_PO_PDF',
+                user=request.user,
+                resource_type='PurchaseOrder',
+                resource_id=po.id,
+                details={
+                    'po_number': po.po_number,
+                },
+                request=request
+            )
+
+            app_logger.info(
+                f"PO PDF downloaded: {po.po_number}",
+                po_id=po.id,
+                user_id=request.user.id
+            )
 
             # Return the PDF as a downloadable file
             http_response = HttpResponse(
@@ -81,14 +109,20 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
             return http_response
 
         except requests.exceptions.Timeout as e:
-            logger.error(f"Timeout downloading PDF from Cloudinary: {e}")
-            return Response(
-                {'error': 'PDF download timed out. Please try again later.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            app_logger.error(
+                f"Timeout downloading PDF from Cloudinary: {e}",
+                exc_info=True,
+                po_id=po.id
+            )
+            return APIResponse.server_error(
+                message="PDF download timed out. Please try again later."
             )
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error downloading PDF from Cloudinary: {e}")
-            return Response(
-                {'error': 'Failed to download PDF file'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            app_logger.error(
+                f"Error downloading PDF from Cloudinary: {e}",
+                exc_info=True,
+                po_id=po.id
+            )
+            return APIResponse.server_error(
+                message="Failed to download PDF file"
             )

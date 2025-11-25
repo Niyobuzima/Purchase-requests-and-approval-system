@@ -1,15 +1,28 @@
+"""
+Analytics Views.
+
+This module provides analytics and dashboard statistics including:
+- Dashboard summary statistics
+- Spending analytics by vendor and time period
+- Pending receipt reviews
+- Request status distribution
+"""
+
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from datetime import timedelta, datetime
+from datetime import timedelta
+
 from apps.purchase_requests.models import PurchaseRequest
 from apps.purchase_orders.models import PurchaseOrder
 from apps.receipts.models import Receipt
 from apps.users.permissions import IsFinance
+
+# Import core utilities
+from core.responses import APIResponse
+from core.filters import apply_date_range_filter
 
 
 class DashboardStatsView(APIView):
@@ -55,7 +68,7 @@ class DashboardStatsView(APIView):
             validation_status__in=['PENDING', 'DISCREPANCY']
         ).count()
 
-        return Response({
+        return APIResponse.success(data={
             'stats': {
                 'total_requests': total_requests,
                 'pending_approvals': pending_approvals,
@@ -82,10 +95,6 @@ class SpendingAnalyticsView(APIView):
     permission_classes = [IsAuthenticated, IsFinance]
 
     def get(self, request):
-        # Parse date filters
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-
         # Base queryset: approved requests
         queryset = PurchaseRequest.objects.filter(
             status__in=[
@@ -94,22 +103,13 @@ class SpendingAnalyticsView(APIView):
             ]
         )
 
-        # Apply date filters
-        if start_date:
-            try:
-                start = datetime.strptime(start_date, '%Y-%m-%d')
-                queryset = queryset.filter(created_at__gte=start)
-            except ValueError:
-                pass
-
-        if end_date:
-            try:
-                end = datetime.strptime(end_date, '%Y-%m-%d')
-                # Include the entire end date
-                end = datetime.combine(end.date(), datetime.max.time())
-                queryset = queryset.filter(created_at__lte=end)
-            except ValueError:
-                pass
+        # Apply date filters using core utility
+        queryset = apply_date_range_filter(
+            queryset,
+            request.query_params.get('start_date'),
+            request.query_params.get('end_date'),
+            date_field='created_at'
+        )
 
         # Spending by vendor
         spending_by_vendor = queryset.values('vendor_name').annotate(
@@ -149,7 +149,7 @@ class SpendingAnalyticsView(APIView):
             total=Sum('total_amount')
         )['total'] or 0
 
-        return Response({
+        return APIResponse.success(data={
             'spending_by_vendor': vendor_spending,
             'monthly_spending': monthly_data,
             'total_spending': float(total_spending),
@@ -183,13 +183,13 @@ class PendingReceiptsView(APIView):
                 'validation_status': receipt.validation_status,
                 'validation_status_display': receipt.get_validation_status_display(),
                 'uploaded_at': receipt.uploaded_at,
-                'uploaded_by_name': f"{receipt.uploaded_by.first_name} {receipt.uploaded_by.last_name}" if receipt.uploaded_by else 'Unknown',
+                'uploaded_by_name': receipt.uploaded_by.full_name if receipt.uploaded_by else 'Unknown',
                 'request_title': receipt.purchase_order.request.title,
                 'total_amount': float(receipt.purchase_order.request.total_amount),
                 'discrepancy_count': len(receipt.discrepancies) if isinstance(receipt.discrepancies, list) else 0,
             })
 
-        return Response({
+        return APIResponse.success(data={
             'receipts': receipts_data,
             'count': len(receipts_data)
         })
@@ -221,6 +221,6 @@ class RequestStatusDistributionView(APIView):
             for item in distribution
         ]
 
-        return Response({
+        return APIResponse.success(data={
             'distribution': status_data
         })

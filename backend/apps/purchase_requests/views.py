@@ -1,13 +1,22 @@
-from rest_framework import viewsets, status, filters
+"""
+Purchase Request Views.
+
+This module handles all purchase request operations including:
+- Creating and managing purchase requests
+- Submitting requests for approval
+- Document upload and AI processing
+"""
+
+from rest_framework import viewsets, filters
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.cache import cache
 from django.db.models import Q
 import tempfile
 import os
+
 from apps.purchase_requests.models import PurchaseRequest, RequestItem
 from apps.approvals.models import Approval
 from apps.purchase_requests.serializers import (
@@ -21,6 +30,13 @@ from apps.purchase_requests.permissions import (
     IsRequesterOrReadOnly,
 )
 from apps.purchase_requests.filters import PurchaseRequestFilter
+
+# Import core utilities
+from core.responses import APIResponse
+from core.exceptions import FileValidationError
+from core.validators import FileValidator
+from core.logging_utils import app_logger, log_view_action, audit_log
+from core.constants import TEMP_FILE_CACHE_TIMEOUT, ErrorCode
 
 
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
@@ -43,6 +59,15 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'submitted_at', 'total_amount', 'status']
     ordering = ['-created_at']
 
+    def _get_optimized_queryset(self):
+        """Return queryset with standard optimizations"""
+        return PurchaseRequest.objects.select_related(
+            'requester',
+            'approved_l1_by',
+            'approved_l2_by',
+            'rejected_by',
+        ).prefetch_related('items')
+
     def get_queryset(self):
         """
         Filter queryset based on user role:
@@ -51,78 +76,30 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         - FINANCE: All approved requests
         """
         user = self.request.user
+        base_queryset = self._get_optimized_queryset()
 
         if user.role == 'STAFF':
-            # Staff can only see their own requests
-            return PurchaseRequest.objects.filter(requester=user).select_related(
-                'requester',
-                'approved_l1_by',
-                'approved_l2_by',
-                'rejected_by',
-            ).prefetch_related('items')
+            return base_queryset.filter(requester=user)
 
         elif user.role == 'APPROVER_L1':
-            # For detail view (retrieve), allow viewing any request they have an approval for
             if self.action == 'retrieve':
-                # Get request IDs where this approver has an approval record
                 approved_request_ids = Approval.objects.filter(
                     Q(approver=user) | Q(level=Approval.Level.LEVEL_1, status=Approval.Status.PENDING)
                 ).values_list('request_id', flat=True)
-                return PurchaseRequest.objects.filter(
-                    id__in=approved_request_ids
-                ).select_related(
-                    'requester',
-                    'approved_l1_by',
-                    'approved_l2_by',
-                    'rejected_by',
-                ).prefetch_related('items')
-            # For list view, only show pending requests
-            return PurchaseRequest.objects.filter(
-                status=PurchaseRequest.Status.PENDING
-            ).select_related(
-                'requester',
-                'approved_l1_by',
-                'approved_l2_by',
-                'rejected_by',
-            ).prefetch_related('items')
+                return base_queryset.filter(id__in=approved_request_ids)
+            return base_queryset.filter(status=PurchaseRequest.Status.PENDING)
 
         elif user.role == 'APPROVER_L2':
-            # For detail view (retrieve), allow viewing any request they have an approval for
             if self.action == 'retrieve':
-                # Get request IDs where this approver has an approval record
                 approved_request_ids = Approval.objects.filter(
                     Q(approver=user) | Q(level=Approval.Level.LEVEL_2, status=Approval.Status.PENDING)
                 ).values_list('request_id', flat=True)
-                return PurchaseRequest.objects.filter(
-                    id__in=approved_request_ids
-                ).select_related(
-                    'requester',
-                    'approved_l1_by',
-                    'approved_l2_by',
-                    'rejected_by',
-                ).prefetch_related('items')
-            # For list view, only show L1-approved requests
-            return PurchaseRequest.objects.filter(
-                status=PurchaseRequest.Status.APPROVED_L1
-            ).select_related(
-                'requester',
-                'approved_l1_by',
-                'approved_l2_by',
-                'rejected_by',
-            ).prefetch_related('items')
+                return base_queryset.filter(id__in=approved_request_ids)
+            return base_queryset.filter(status=PurchaseRequest.Status.APPROVED_L1)
 
         elif user.role == 'FINANCE':
-            # Finance sees all approved requests
-            return PurchaseRequest.objects.filter(
-                status=PurchaseRequest.Status.APPROVED
-            ).select_related(
-                'requester',
-                'approved_l1_by',
-                'approved_l2_by',
-                'rejected_by',
-            ).prefetch_related('items')
+            return base_queryset.filter(status=PurchaseRequest.Status.APPROVED)
 
-        # Default: no access
         return PurchaseRequest.objects.none()
 
     def get_serializer_class(self):
@@ -135,62 +112,108 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         """Set requester to current user"""
         serializer.save(requester=self.request.user)
 
+    @log_view_action("Create Purchase Request")
     def create(self, request, *args, **kwargs):
         """Create a new purchase request"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        # Return full serialized data
-        response_serializer = PurchaseRequestSerializer(serializer.instance)
-        headers = self.get_success_headers(response_serializer.data)
-        return Response(
-            response_serializer.data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
+        # Log the creation
+        audit_log(
+            action='CREATE',
+            user=request.user,
+            resource_type='PurchaseRequest',
+            resource_id=serializer.instance.id,
+            details={'title': serializer.instance.title},
+            request=request
         )
 
+        response_serializer = PurchaseRequestSerializer(serializer.instance)
+        return APIResponse.created(
+            data=response_serializer.data,
+            message="Purchase request created successfully"
+        )
+
+    @log_view_action("Update Purchase Request")
     def update(self, request, *args, **kwargs):
         """Update purchase request (only if DRAFT)"""
         instance = self.get_object()
 
         # Only allow updates if request is in DRAFT status
         if instance.status != PurchaseRequest.Status.DRAFT:
-            return Response(
-                {'error': 'Only draft requests can be updated.'},
-                status=status.HTTP_400_BAD_REQUEST
+            app_logger.warning(
+                f"Attempted to update non-draft request {instance.id}",
+                user_id=request.user.id,
+                request_status=instance.status
+            )
+            return APIResponse.error(
+                message="Only draft requests can be updated",
+                code=ErrorCode.INVALID_STATUS
             )
 
         # Only requester can update
         if instance.requester != request.user:
-            return Response(
-                {'error': 'You can only update your own requests.'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You can only update your own requests"
             )
 
-        return super().update(request, *args, **kwargs)
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
 
+        audit_log(
+            action='UPDATE',
+            user=request.user,
+            resource_type='PurchaseRequest',
+            resource_id=instance.id,
+            request=request
+        )
+
+        return APIResponse.success(
+            data=serializer.data,
+            message="Purchase request updated successfully"
+        )
+
+    @log_view_action("Delete Purchase Request")
     def destroy(self, request, *args, **kwargs):
         """Delete purchase request (only if DRAFT)"""
         instance = self.get_object()
 
         # Only allow deletion if request is in DRAFT status
         if instance.status != PurchaseRequest.Status.DRAFT:
-            return Response(
-                {'error': 'Only draft requests can be deleted.'},
-                status=status.HTTP_400_BAD_REQUEST
+            app_logger.warning(
+                f"Attempted to delete non-draft request {instance.id}",
+                user_id=request.user.id,
+                request_status=instance.status
+            )
+            return APIResponse.error(
+                message="Only draft requests can be deleted",
+                code=ErrorCode.INVALID_STATUS
             )
 
         # Only requester can delete
         if instance.requester != request.user:
-            return Response(
-                {'error': 'You can only delete your own requests.'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You can only delete your own requests"
             )
 
-        return super().destroy(request, *args, **kwargs)
+        request_id = instance.id
+        instance.delete()
+
+        audit_log(
+            action='DELETE',
+            user=request.user,
+            resource_type='PurchaseRequest',
+            resource_id=request_id,
+            request=request
+        )
+
+        return APIResponse.no_content()
 
     @action(detail=True, methods=['post'])
+    @log_view_action("Submit Purchase Request")
     def submit(self, request, pk=None):
         """
         Submit a draft request for approval
@@ -201,9 +224,8 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
         # Only requester can submit
         if instance.requester != request.user:
-            return Response(
-                {'error': 'You can only submit your own requests.'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You can only submit your own requests"
             )
 
         serializer = SubmitRequestSerializer(
@@ -213,34 +235,34 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         updated_instance = serializer.save()
 
-        # Return full request data
+        audit_log(
+            action='SUBMIT',
+            user=request.user,
+            resource_type='PurchaseRequest',
+            resource_id=instance.id,
+            details={'new_status': updated_instance.status},
+            request=request
+        )
+
         response_serializer = PurchaseRequestSerializer(updated_instance)
-        return Response(response_serializer.data)
+        return APIResponse.success(
+            data=response_serializer.data,
+            message="Purchase request submitted for approval"
+        )
 
     @action(detail=False, methods=['get'])
     def my_requests(self, request):
         """Get current user's requests with pagination"""
-        queryset = PurchaseRequest.objects.filter(
-            requester=request.user
-        ).select_related(
-            'requester',
-            'approved_l1_by',
-            'approved_l2_by',
-            'rejected_by',
-        ).prefetch_related('items')
-
-        # Apply filters
+        queryset = self._get_optimized_queryset().filter(requester=request.user)
         queryset = self.filter_queryset(queryset)
 
-        # Paginate the queryset
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = PurchaseRequestListSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        # Fallback for non-paginated requests
         serializer = PurchaseRequestListSerializer(queryset, many=True)
-        return Response(serializer.data)
+        return APIResponse.success(data=serializer.data)
 
     @action(detail=True, methods=['get'])
     def items(self, request, pk=None):
@@ -248,13 +270,14 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         items = instance.items.all()
         serializer = RequestItemSerializer(items, many=True)
-        return Response(serializer.data)
+        return APIResponse.success(data=serializer.data)
 
     @action(
         detail=True,
         methods=['post'],
         parser_classes=[MultiPartParser, FormParser]
     )
+    @log_view_action("Upload Document")
     def upload_document(self, request, pk=None):
         """
         Upload invoice/receipt document to request
@@ -266,85 +289,91 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
         # Only requester can upload
         if instance.requester != request.user:
-            return Response(
-                {'error': 'You can only upload documents to your own requests.'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You can only upload documents to your own requests"
             )
 
         # Only allow upload for draft requests
         if instance.status != PurchaseRequest.Status.DRAFT:
-            return Response(
-                {'error': 'Documents can only be uploaded to draft requests.'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.error(
+                message="Documents can only be uploaded to draft requests",
+                code=ErrorCode.INVALID_STATUS
             )
 
         # Get file from request
         document_file = request.FILES.get('document')
         if not document_file:
-            return Response(
-                {'error': 'No document file provided.'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.validation_error(
+                errors={'document': ['No document file provided']},
+                message="No document file provided"
             )
 
-        # Validate file size (10MB)
-        max_size = 10 * 1024 * 1024  # 10MB
-        if document_file.size > max_size:
-            return Response(
-                {'error': 'File size exceeds 10MB limit.'},
-                status=status.HTTP_400_BAD_REQUEST
+        # Validate file using centralized validator
+        try:
+            FileValidator.validate(document_file)
+        except FileValidationError as e:
+            return APIResponse.validation_error(
+                errors={'document': [e.message]},
+                message=e.message
             )
 
-        # Validate file type
-        allowed_types = [
-            'application/pdf',
-            'image/jpeg',
-            'image/jpg',
-            'image/png'
-        ]
-        if document_file.content_type not in allowed_types:
-            return Response(
-                {'error': 'Only PDF and image files (JPG, PNG) are allowed.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Store file temporarily for AI processing (before/during Cloudinary upload)
-        # Write to a temporary file instead of caching in memory
+        # Store file temporarily for AI processing
         document_file.seek(0)
         file_content = document_file.read()
         file_name = document_file.name
-        
-        # Create temporary file
-        temp_fd, temp_path = tempfile.mkstemp(suffix=os.path.splitext(file_name)[1])
+
+        # Use unique prefix to avoid cleanup conflicts with other temp files
+        temp_fd, temp_path = tempfile.mkstemp(
+            prefix='pr_upload_',
+            suffix=os.path.splitext(file_name)[1]
+        )
         try:
-            # Write content to temp file
             with os.fdopen(temp_fd, 'wb') as temp_file:
                 temp_file.write(file_content)
-            
-            # Save file to Cloudinary (for storage/reference)
+
+            # Save file to Cloudinary
             document_file.seek(0)
             instance.document_file = document_file
             instance.save()
-            
-            # Cache only the temp file path (very small) for 5 minutes
+
+            # Cache temp file path for AI processing with timestamp for cleanup
             cache_key = f'upload_file_{instance.id}'
             cache.set(cache_key, {
                 'temp_path': temp_path,
-                'name': file_name
-            }, timeout=300)  # 5 minutes
+                'name': file_name,
+                'created_at': os.path.getmtime(temp_path)
+            }, timeout=TEMP_FILE_CACHE_TIMEOUT)
+
+            app_logger.info(
+                f"Document uploaded for request {instance.id}, temp file cached",
+                user_id=request.user.id,
+                file_name=file_name,
+                temp_path=temp_path
+            )
+
         except Exception as e:
-            # Clean up temp file if something goes wrong
+            # Clean up temp file on error
             try:
                 os.unlink(temp_path)
-            except:
-                pass
-            raise e
+            except Exception as cleanup_error:
+                app_logger.warning(
+                    f"Failed to cleanup temp file {temp_path}: {cleanup_error}",
+                    user_id=request.user.id
+                )
+            app_logger.error(
+                f"Failed to upload document for request {instance.id}: {e}",
+                exc_info=True,
+                user_id=request.user.id
+            )
+            raise
 
-        return Response({
-            'message': 'Document uploaded successfully.',
-            'document_url': instance.document_file.url if instance.document_file else None,
-        })
+        return APIResponse.success(
+            message="Document uploaded successfully",
+            document_url=instance.document_file.url if instance.document_file else None
+        )
 
     @action(detail=True, methods=['post'])
+    @log_view_action("Process Document with AI")
     def process_document(self, request, pk=None):
         """
         Process uploaded document with AI to extract invoice data
@@ -355,20 +384,18 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
 
         # Only requester can process
         if instance.requester != request.user:
-            return Response(
-                {'error': 'You can only process documents for your own requests.'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You can only process documents for your own requests"
             )
 
         # Ensure document is uploaded
         if not instance.document_file:
-            return Response(
-                {'error': 'No document uploaded. Please upload a document first.'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.error(
+                message="No document uploaded. Please upload a document first.",
+                code=ErrorCode.VALIDATION_ERROR
             )
 
         try:
-            # Try to get cached temp file path first (uploaded within last 5 minutes)
             cache_key = f'upload_file_{instance.id}'
             cached_file = cache.get(cache_key)
 
@@ -376,29 +403,34 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             processor = get_document_processor()
 
             if cached_file and cached_file.get('temp_path'):
-                # Use temporary file (bypasses Cloudinary download)
                 temp_path = cached_file['temp_path']
-                print(f"Using temporary file for AI processing: {temp_path}")
-                
+                app_logger.info(
+                    f"Using temporary file for AI processing: {temp_path}",
+                    request_id=instance.id
+                )
+
                 try:
-                    # Read from temp file
                     with open(temp_path, 'rb') as temp_file:
                         file_content = temp_file.read()
-                    
+
                     extracted_data = processor.process_document_from_bytes(
                         file_content,
                         cached_file['name']
                     )
                 finally:
-                    # Clean up: delete temp file and cache entry
+                    # Clean up temp file
                     try:
                         os.unlink(temp_path)
                     except Exception as cleanup_error:
-                        print(f"Warning: Could not delete temp file {temp_path}: {cleanup_error}")
+                        app_logger.warning(
+                            f"Could not delete temp file {temp_path}: {cleanup_error}"
+                        )
                     cache.delete(cache_key)
             else:
-                # Fallback: download from Cloudinary
-                print("No cached temp file, attempting to download from Cloudinary")
+                app_logger.info(
+                    "No cached temp file, downloading from Cloudinary",
+                    request_id=instance.id
+                )
                 extracted_data = processor.process_document_from_file(instance.document_file)
                 cache.delete(cache_key)
 
@@ -407,14 +439,43 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             instance.document_processed = extracted_data.get('success', False)
             instance.save()
 
-            return Response({
-                'message': 'Document processed successfully.' if instance.document_processed else 'Document processing failed.',
-                'extracted_data': extracted_data,
-                'document_processed': instance.document_processed,
-            })
+            # Check if document validation failed (invalid document type)
+            is_invalid_document = extracted_data.get('is_valid_document') is False
+
+            audit_log(
+                action='PROCESS_DOCUMENT',
+                user=request.user,
+                resource_type='PurchaseRequest',
+                resource_id=instance.id,
+                details={
+                    'success': instance.document_processed,
+                    'is_valid_document': not is_invalid_document,
+                    'document_type': extracted_data.get('document_type')
+                },
+                request=request
+            )
+
+            # Return appropriate message based on result
+            if instance.document_processed:
+                message = 'Document processed successfully'
+            elif is_invalid_document:
+                # Use user-friendly message for invalid document types
+                message = extracted_data.get('user_message', 'Invalid document type. Please upload a valid proforma invoice, receipt, or quotation.')
+            else:
+                message = 'Document processing completed with issues'
+
+            return APIResponse.success(
+                message=message,
+                extracted_data=extracted_data,
+                document_processed=instance.document_processed
+            )
 
         except Exception as e:
-            return Response(
-                {'error': f'Error processing document: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            app_logger.error(
+                f"Error processing document for request {instance.id}: {e}",
+                exc_info=True,
+                user_id=request.user.id
+            )
+            return APIResponse.server_error(
+                message=f"Error processing document: {str(e)}"
             )

@@ -3,9 +3,9 @@ Email utility functions for sending notification emails
 """
 from django.core.mail import send_mail
 from django.conf import settings
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags, escape
-from urllib.parse import quote as urlquote
+from django.utils.html import escape
+
+from core.logging_utils import app_logger
 
 
 def send_notification_email(user, subject, message, action_url=None):
@@ -131,10 +131,20 @@ Please do not reply to this email.
             fail_silently=True,  # Don't raise exceptions if email fails
         )
 
+        app_logger.info(
+            f"Email sent to {user.email}",
+            user_id=user.id,
+            subject=subject
+        )
         return True
     except Exception as e:
         # Log the error but don't break the application
-        print(f"Failed to send email to {user.email}: {str(e)}")
+        app_logger.error(
+            f"Failed to send email to {user.email}: {str(e)}",
+            exc_info=True,
+            user_id=user.id,
+            subject=subject
+        )
         return False
 
 

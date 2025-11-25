@@ -37,6 +37,18 @@ class User(AbstractUser):
         return f"{self.email} ({self.get_role_display()})"
 
     @property
+    def full_name(self) -> str:
+        """
+        Return user's full name or username as fallback.
+        
+        """
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        elif self.first_name:
+            return self.first_name
+        return self.username
+
+    @property
     def is_staff_user(self):
         return self.role == self.Role.STAFF
 

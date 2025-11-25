@@ -1,6 +1,15 @@
-from rest_framework import viewsets, status, filters
+"""
+Receipt Views.
+
+This module handles receipt management operations including:
+- Uploading receipts
+- AI-powered data extraction
+- Validating receipts against purchase orders
+- Finance approval workflow
+"""
+
+from rest_framework import viewsets, filters
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -10,11 +19,12 @@ from django.db import transaction
 from .models import Receipt
 from .serializers import ReceiptSerializer, ReceiptApprovalSerializer
 from .filters import ReceiptFilter
-from apps.purchase_orders.models import PurchaseOrder
 from utils.ai_processor import get_document_processor
-import logging
 
-logger = logging.getLogger(__name__)
+# Import core utilities
+from core.responses import APIResponse
+from core.logging_utils import app_logger, log_view_action, audit_log
+from core.constants import AMOUNT_TOLERANCE_PERCENT, ErrorCode
 
 
 class ReceiptViewSet(viewsets.ModelViewSet):
@@ -75,9 +85,25 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         # Set the uploader
         receipt = serializer.save(uploaded_by=self.request.user)
 
+        # Audit log for receipt upload
+        audit_log(
+            action='UPLOAD_RECEIPT',
+            user=self.request.user,
+            resource_type='Receipt',
+            resource_id=receipt.id,
+            details={
+                'purchase_order_id': receipt.purchase_order_id,
+            },
+            request=self.request
+        )
+
         # Process the receipt with AI in the background
         try:
-            logger.info(f"Processing receipt {receipt.id} with AI...")
+            app_logger.info(
+                f"Processing receipt {receipt.id} with AI",
+                receipt_id=receipt.id,
+                user_id=self.request.user.id
+            )
             processor = get_document_processor()
 
             # Process from Cloudinary file
@@ -87,15 +113,42 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 # Save extracted data
                 receipt.extracted_receipt_data = extracted_data
                 receipt.save(update_fields=['extracted_receipt_data'])
-                logger.info(f"Successfully extracted data from receipt {receipt.id}")
+                app_logger.info(
+                    f"Successfully extracted data from receipt {receipt.id}",
+                    receipt_id=receipt.id
+                )
 
                 # Automatically run validation after extraction
                 self._auto_validate_receipt(receipt)
+            elif extracted_data.get('is_valid_document') is False:
+                # Document type validation failed - not a valid receipt
+                app_logger.warning(
+                    f"Invalid document type uploaded for receipt {receipt.id}",
+                    receipt_id=receipt.id,
+                    document_type=extracted_data.get('document_type'),
+                    error=extracted_data.get('error')
+                )
+                # Save the error info and mark as failed validation
+                receipt.extracted_receipt_data = extracted_data
+                receipt.validation_status = 'FAILED'
+                receipt.validation_notes = extracted_data.get(
+                    'user_message',
+                    'Invalid document type. Please upload a valid receipt.'
+                )
+                receipt.save(update_fields=['extracted_receipt_data', 'validation_status', 'validation_notes'])
             else:
-                logger.warning(f"AI extraction failed for receipt {receipt.id}: {extracted_data.get('error')}")
+                app_logger.warning(
+                    f"AI extraction failed for receipt {receipt.id}",
+                    receipt_id=receipt.id,
+                    error=extracted_data.get('error')
+                )
 
         except Exception as e:
-            logger.error(f"Error processing receipt {receipt.id}: {e}")
+            app_logger.error(
+                f"Error processing receipt {receipt.id}: {e}",
+                exc_info=True,
+                receipt_id=receipt.id
+            )
             # Don't fail the upload, just log the error
 
     def _validate_receipt_against_po(self, receipt, po, receipt_data):
@@ -135,17 +188,16 @@ class ReceiptViewSet(viewsets.ModelViewSet):
                 
                 receipt_total_float = float(receipt_total_str)
                 
-                # Check if within tolerance
-                tolerance = 0.05  # 5%
-                lower_bound = po_total * (1 - tolerance)
-                upper_bound = po_total * (1 + tolerance)
+                # Check if within tolerance (use constant from core)
+                lower_bound = po_total * (1 - AMOUNT_TOLERANCE_PERCENT)
+                upper_bound = po_total * (1 + AMOUNT_TOLERANCE_PERCENT)
 
                 if not (lower_bound <= receipt_total_float <= upper_bound):
                     difference = receipt_total_float - po_total
                     discrepancies.append({
                         'type': 'amount_mismatch',
                         'severity': 'high',
-                        'message': f"Total amount outside 5% tolerance",
+                        'message': f"Total amount outside {int(AMOUNT_TOLERANCE_PERCENT * 100)}% tolerance",
                         'po_value': po_total,
                         'receipt_value': receipt_total_float,
                         'difference': difference,
@@ -222,7 +274,10 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         Automatically validate receipt against PO after AI extraction
         """
         try:
-            logger.info(f"Auto-validating receipt {receipt.id}...")
+            app_logger.info(
+                f"Auto-validating receipt {receipt.id}",
+                receipt_id=receipt.id
+            )
 
             if not receipt.extracted_receipt_data:
                 return
@@ -239,13 +294,23 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             receipt.validation_status = validation_status
             receipt.discrepancies = discrepancies
             receipt.save(update_fields=['validation_status', 'discrepancies'])
-            
-            logger.info(f"Validation complete for receipt {receipt.id}: {receipt.validation_status}")
+
+            app_logger.info(
+                f"Validation complete for receipt {receipt.id}: {receipt.validation_status}",
+                receipt_id=receipt.id,
+                validation_status=receipt.validation_status,
+                discrepancy_count=len(discrepancies)
+            )
 
         except Exception as e:
-            logger.error(f"Error auto-validating receipt {receipt.id}: {e}")
+            app_logger.error(
+                f"Error auto-validating receipt {receipt.id}: {e}",
+                exc_info=True,
+                receipt_id=receipt.id
+            )
 
     @action(detail=True, methods=['post'])
+    @log_view_action("Validate Receipt")
     def validate(self, request, pk=None):
         """
         Validate receipt against purchase order
@@ -255,9 +320,9 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         receipt = self.get_object()
 
         if not receipt.extracted_receipt_data:
-            return Response(
-                {'error': 'Receipt data has not been extracted yet'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.error(
+                message="Receipt data has not been extracted yet",
+                code=ErrorCode.VALIDATION_ERROR
             )
 
         # Get PO and receipt data
@@ -275,43 +340,87 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             receipt.validation_status = validation_status
             receipt.save(update_fields=['validation_status', 'discrepancies'])
 
-        return Response({
-            'validation_status': validation_status,
-            'discrepancies': discrepancies,
-            'discrepancy_count': len(discrepancies),
-            'message': 'Validation complete'
-        })
+        # Audit log
+        audit_log(
+            action='VALIDATE_RECEIPT',
+            user=request.user,
+            resource_type='Receipt',
+            resource_id=receipt.id,
+            details={
+                'validation_status': validation_status,
+                'discrepancy_count': len(discrepancies),
+            },
+            request=request
+        )
+
+        app_logger.info(
+            f"Receipt {receipt.id} validated by user {request.user.id}",
+            receipt_id=receipt.id,
+            validation_status=validation_status,
+            discrepancy_count=len(discrepancies)
+        )
+
+        return APIResponse.success(
+            data={
+                'validation_status': validation_status,
+                'discrepancies': discrepancies,
+                'discrepancy_count': len(discrepancies),
+            },
+            message="Validation complete"
+        )
 
     @action(detail=True, methods=['post'], parser_classes=[JSONParser])
+    @log_view_action("Approve Receipt")
     def approve(self, request, pk=None):
         """
         Approve receipt despite discrepancies (Finance only)
         """
         if request.user.role != 'FINANCE':
-            return Response(
-                {'error': 'Only Finance users can approve receipts'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="Only Finance users can approve receipts"
             )
 
         receipt = self.get_object()
         serializer = ReceiptApprovalSerializer(data=request.data)
 
-        if serializer.is_valid():
-            with transaction.atomic():
-                receipt.validation_status = 'APPROVED'
-                receipt.finance_comments = serializer.validated_data.get('finance_comments', '')
-                receipt.approved_by = request.user
-                receipt.approved_at = timezone.now()
-                receipt.save(update_fields=[
-                    'validation_status',
-                    'finance_comments',
-                    'approved_by',
-                    'approved_at'
-                ])
+        if not serializer.is_valid():
+            return APIResponse.validation_error(
+                errors=serializer.errors,
+                message="Invalid approval data"
+            )
 
-            return Response({
-                'message': 'Receipt approved successfully',
-                'receipt': ReceiptSerializer(receipt).data
-            })
+        with transaction.atomic():
+            receipt.validation_status = 'APPROVED'
+            receipt.finance_comments = serializer.validated_data.get('finance_comments', '')
+            receipt.approved_by = request.user
+            receipt.approved_at = timezone.now()
+            receipt.save(update_fields=[
+                'validation_status',
+                'finance_comments',
+                'approved_by',
+                'approved_at'
+            ])
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Audit log
+        audit_log(
+            action='APPROVE_RECEIPT',
+            user=request.user,
+            resource_type='Receipt',
+            resource_id=receipt.id,
+            details={
+                'purchase_order_id': receipt.purchase_order_id,
+                'finance_comments': receipt.finance_comments,
+            },
+            request=request
+        )
+
+        app_logger.info(
+            f"Receipt {receipt.id} approved by finance user {request.user.id}",
+            receipt_id=receipt.id,
+            approved_by=request.user.id
+        )
+
+        return APIResponse.success(
+            data=ReceiptSerializer(receipt).data,
+            message="Receipt approved successfully"
+        )
