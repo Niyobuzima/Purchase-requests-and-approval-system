@@ -51,8 +51,10 @@ ENV VIRTUAL_ENV="/app/.venv"
 
 WORKDIR /app
 
-# Install uv in final stage (needed for uv run)
-RUN pip install --no-cache-dir uv
+# Install uv and curl (for health checks)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir uv
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -66,14 +68,12 @@ RUN mkdir -p /app/staticfiles /app/media && \
 
 EXPOSE 8000
 
+# Health check - verify the app is responding
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/api/health/ || exit 1
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
-# ================================
-# 🚀 Run Django with uvicorn (via uv run)
-# ================================
-# Using uv run ensures the app runs in the uv-managed virtual environment
-# uvicorn provides async support and better performance than gunicorn for async Django
-# Use HOST and PORT env vars from cloud provider, default to 0.0.0.0:8000 for local development
 CMD uv run uvicorn backend.asgi:application \
      --host ${HOST:-0.0.0.0} \
      --port ${PORT:-8000} \
