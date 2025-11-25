@@ -72,9 +72,11 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # ================================
 # Using uv run ensures the app runs in the uv-managed virtual environment
 # uvicorn provides async support and better performance than gunicorn for async Django
-CMD ["uv", "run", "uvicorn", "backend.asgi:application", \
-     "--port", "8000", \
-     "--workers", "2", \
-     "--timeout-keep-alive", "120", \
-     "--log-level", "info", \
-     "--access-log"]
+# Use HOST and PORT env vars from cloud provider, default to 0.0.0.0:8000 for local development
+CMD uv run uvicorn backend.asgi:application \
+     --host ${HOST:-0.0.0.0} \
+     --port ${PORT:-8000} \
+     --workers 2 \
+     --timeout-keep-alive 120 \
+     --log-level info \
+     --access-log
