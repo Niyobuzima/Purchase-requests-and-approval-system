@@ -147,7 +147,7 @@ export const AdminDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {Object.entries(stats.users_by_role).map(([role, count]) => {
+                {Object.entries(stats?.users_by_role ?? {}).map(([role, count]) => {
                   const percent = stats.total_users ? (count / stats.total_users) * 100 : 0;
                   return (
                     <div key={role} className="flex items-center justify-between">

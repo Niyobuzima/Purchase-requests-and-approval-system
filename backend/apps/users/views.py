@@ -218,22 +218,25 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
 
-        # Prevent admin from demoting themselves
-        if instance == request.user and 'role' in request.data and request.data.get('role') != User.Role.ADMIN:
-            return Response(
-                {'error': 'You cannot change your own role'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Prevent admin from deactivating themselves
-        if instance == request.user and request.data.get('is_active') is False:
-            return Response(
-                {'error': 'You cannot deactivate your own account'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+
+        # Prevent admin from changing their own role
+        if instance == request.user and 'role' in serializer.validated_data:
+            if serializer.validated_data['role'] != instance.role:
+                return Response(
+                    {'error': 'You cannot change your own role'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Prevent admin from deactivating themselves
+        if instance == request.user and 'is_active' in serializer.validated_data:
+            if serializer.validated_data['is_active'] is False:
+                return Response(
+                    {'error': 'You cannot deactivate your own account'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         self.perform_update(serializer)
 
         return Response(AdminUserSerializer(instance).data)
