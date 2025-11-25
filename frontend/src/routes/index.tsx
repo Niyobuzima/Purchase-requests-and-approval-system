@@ -28,6 +28,9 @@ import { ApproverDashboard } from '../features/approver/ApproverDashboard';
 import { FinanceDashboardPage } from '../features/finance/FinanceDashboardPage';
 import { ExportHistoryPage } from '../features/finance/ExportHistoryPage';
 
+// Admin Components
+import { AdminDashboard, UserManagement, UserForm } from '../features/admin';
+
 const UnauthorizedPage: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
     <div className="text-center">
@@ -175,6 +178,32 @@ const router = createBrowserRouter([
       {
         path: 'export-history',
         element: <ExportHistoryPage />,
+      },
+    ],
+  },
+  {
+    path: '/admin',
+    element: (
+      <ProtectedRoute allowedRoles={['ADMIN']}>
+        <Layout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        path: 'dashboard',
+        element: <AdminDashboard />,
+      },
+      {
+        path: 'users',
+        element: <UserManagement />,
+      },
+      {
+        path: 'users/new',
+        element: <UserForm />,
+      },
+      {
+        path: 'users/:userId',
+        element: <UserForm />,
       },
     ],
   },

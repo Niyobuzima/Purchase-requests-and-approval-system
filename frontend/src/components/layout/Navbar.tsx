@@ -19,6 +19,8 @@ import {
   ShoppingCart,
   Receipt,
   Download,
+  Users,
+  Shield,
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -37,6 +39,7 @@ const Navbar: React.FC = () => {
       APPROVER_L1: { bg: 'bg-purple-100', text: 'text-purple-800' },
       APPROVER_L2: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
       FINANCE: { bg: 'bg-green-100', text: 'text-green-800' },
+      ADMIN: { bg: 'bg-red-100', text: 'text-red-800' },
     };
 
     const badge = badges[role] || badges.STAFF;
@@ -55,6 +58,8 @@ const Navbar: React.FC = () => {
     if (!user) return '/';
 
     switch (user.role) {
+      case 'ADMIN':
+        return '/admin/dashboard';
       case 'STAFF':
         return '/staff/dashboard';
       case 'APPROVER_L1':
@@ -148,6 +153,19 @@ const Navbar: React.FC = () => {
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Export History
+                    </Button>
+                  </>
+                )}
+
+                {user.role === 'ADMIN' && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/admin/users')}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      User Management
                     </Button>
                   </>
                 )}

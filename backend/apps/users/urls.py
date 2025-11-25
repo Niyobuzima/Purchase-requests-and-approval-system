@@ -6,6 +6,9 @@ from apps.users.views import (
     LogoutView,
     UserProfileView,
     ChangePasswordView,
+    AdminUserListView,
+    AdminUserDetailView,
+    AdminDashboardStatsView,
 )
 
 urlpatterns = [
@@ -15,4 +18,9 @@ urlpatterns = [
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('me/', UserProfileView.as_view(), name='user-profile'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+
+    # Admin endpoints
+    path('admin/users/', AdminUserListView.as_view(), name='admin-users'),
+    path('admin/users/<int:pk>/', AdminUserDetailView.as_view(), name='admin-user-detail'),
+    path('admin/dashboard/', AdminDashboardStatsView.as_view(), name='admin-dashboard'),
 ]
