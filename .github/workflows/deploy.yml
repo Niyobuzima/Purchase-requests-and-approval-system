@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/theoserver_key
+          chmod 600 ~/.ssh/theoserver_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Upload project to server
+        run: |
+          rsync -avz --exclude='.git' --exclude='node_modules' --exclude='venv' \
+          -e "ssh -i ~/.ssh/theoserver_key" \
+          . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/app
+
+      - name: Create .env on server
+        run: |
+          ssh -i ~/.ssh/theoserver_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cat > /root/app/.env << 'EOV'
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+            DEBUG=False
+            EOV
+          EOF
+
+      - name: Deploy Docker Compose stack
+        run: |
+          ssh -i ~/.ssh/theoserver_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd /root/app
+            docker compose -f docker-compose.prod.yml down --remove-orphans
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --build
+          EOF
