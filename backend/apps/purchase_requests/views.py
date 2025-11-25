@@ -5,9 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.cache import cache
+from django.db.models import Q
 import tempfile
 import os
 from apps.purchase_requests.models import PurchaseRequest, RequestItem
+from apps.approvals.models import Approval
 from apps.purchase_requests.serializers import (
     PurchaseRequestSerializer,
     PurchaseRequestListSerializer,
@@ -45,7 +47,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         """
         Filter queryset based on user role:
         - STAFF: Only their own requests
-        - APPROVER_L1/L2: Requests pending their approval
+        - APPROVER_L1/L2: Requests pending their approval (list) or any they've reviewed (detail)
         - FINANCE: All approved requests
         """
         user = self.request.user
@@ -60,7 +62,21 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             ).prefetch_related('items')
 
         elif user.role == 'APPROVER_L1':
-            # L1 Approvers see pending requests
+            # For detail view (retrieve), allow viewing any request they have an approval for
+            if self.action == 'retrieve':
+                # Get request IDs where this approver has an approval record
+                approved_request_ids = Approval.objects.filter(
+                    Q(approver=user) | Q(level=Approval.Level.LEVEL_1, status=Approval.Status.PENDING)
+                ).values_list('request_id', flat=True)
+                return PurchaseRequest.objects.filter(
+                    id__in=approved_request_ids
+                ).select_related(
+                    'requester',
+                    'approved_l1_by',
+                    'approved_l2_by',
+                    'rejected_by',
+                ).prefetch_related('items')
+            # For list view, only show pending requests
             return PurchaseRequest.objects.filter(
                 status=PurchaseRequest.Status.PENDING
             ).select_related(
@@ -71,7 +87,21 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             ).prefetch_related('items')
 
         elif user.role == 'APPROVER_L2':
-            # L2 Approvers see L1-approved requests
+            # For detail view (retrieve), allow viewing any request they have an approval for
+            if self.action == 'retrieve':
+                # Get request IDs where this approver has an approval record
+                approved_request_ids = Approval.objects.filter(
+                    Q(approver=user) | Q(level=Approval.Level.LEVEL_2, status=Approval.Status.PENDING)
+                ).values_list('request_id', flat=True)
+                return PurchaseRequest.objects.filter(
+                    id__in=approved_request_ids
+                ).select_related(
+                    'requester',
+                    'approved_l1_by',
+                    'approved_l2_by',
+                    'rejected_by',
+                ).prefetch_related('items')
+            # For list view, only show L1-approved requests
             return PurchaseRequest.objects.filter(
                 status=PurchaseRequest.Status.APPROVED_L1
             ).select_related(

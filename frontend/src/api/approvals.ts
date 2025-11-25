@@ -29,6 +29,16 @@ export interface ApprovalAction {
   comments?: string;
 }
 
+export interface ApprovalStats {
+  pending_count: number;
+  pending_amount: number;
+  my_approved: number;
+  my_rejected: number;
+  today_processed: number;
+  level: number;
+  level_display: string;
+}
+
 export const approvalsAPI = {
   // Get all pending approvals for current user
   pending: async (): Promise<Approval[]> => {
@@ -71,5 +81,11 @@ export const approvalsAPI = {
     const response = await api.get('/approvals/', { params: { request: requestId } });
     // Handle paginated response
     return Array.isArray(response.data) ? response.data : response.data.results || [];
+  },
+
+  // Get approval stats for dashboard
+  stats: async (): Promise<ApprovalStats> => {
+    const response = await api.get('/approvals/stats/');
+    return response.data;
   },
 };

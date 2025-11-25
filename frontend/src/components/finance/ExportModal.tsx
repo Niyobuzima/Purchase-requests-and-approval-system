@@ -10,7 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { reportsAPI, ExportRequest } from '@/api/reports';
@@ -105,14 +111,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
           <div className="grid gap-2">
             <Label htmlFor="export-type">Report Type</Label>
             <Select
-              id="export-type"
               value={exportType}
-              onChange={(e) => setExportType(e.target.value as ExportRequest['export_type'])}
+              onValueChange={(value) => setExportType(value as ExportRequest['export_type'])}
             >
-              <option value="PURCHASE_ORDERS">Purchase Orders</option>
-              <option value="RECEIPTS">Receipts</option>
-              <option value="SPENDING_SUMMARY">Spending Summary</option>
-              <option value="APPROVAL_TIMELINE">Approval Timeline</option>
+              <SelectTrigger id="export-type">
+                <SelectValue placeholder="Select report type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PURCHASE_ORDERS">Purchase Orders</SelectItem>
+                <SelectItem value="RECEIPTS">Receipts</SelectItem>
+                <SelectItem value="SPENDING_SUMMARY">Spending Summary</SelectItem>
+                <SelectItem value="APPROVAL_TIMELINE">Approval Timeline</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
@@ -120,16 +130,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
           <div className="grid gap-2">
             <Label htmlFor="export-format">Format</Label>
             <Select
-              id="export-format"
               value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value as ExportRequest['export_format'])}
+              onValueChange={(value) => setExportFormat(value as ExportRequest['export_format'])}
               disabled={exportType === 'SPENDING_SUMMARY'}
             >
-              {exportType === 'SPENDING_SUMMARY' ? (
-                <option value="PDF">PDF Report</option>
-              ) : (
-                <option value="CSV">CSV Spreadsheet</option>
-              )}
+              <SelectTrigger id="export-format">
+                <SelectValue placeholder="Select format" />
+              </SelectTrigger>
+              <SelectContent>
+                {exportType === 'SPENDING_SUMMARY' ? (
+                  <SelectItem value="PDF">PDF Report</SelectItem>
+                ) : (
+                  <SelectItem value="CSV">CSV Spreadsheet</SelectItem>
+                )}
+              </SelectContent>
             </Select>
           </div>
 
@@ -173,16 +187,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ open, onOpenChange }) 
                 Status
               </Label>
               <Select
-                id="status-filter"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={statusFilter || 'ALL'}
+                onValueChange={(value) => setStatusFilter(value === 'ALL' ? '' : value)}
               >
-                <option value="">All</option>
-                <option value="PENDING_L1">Pending L1</option>
-                <option value="PENDING_L2">Pending L2</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED_L1">Rejected L1</option>
-                <option value="REJECTED_L2">Rejected L2</option>
+                <SelectTrigger id="status-filter">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="PENDING_L1">Pending L1</SelectItem>
+                  <SelectItem value="PENDING_L2">Pending L2</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="REJECTED_L1">Rejected L1</SelectItem>
+                  <SelectItem value="REJECTED_L2">Rejected L2</SelectItem>
+                </SelectContent>
               </Select>
             </div>
 
