@@ -96,14 +96,11 @@ class LoginView(generics.GenericAPIView):
 
         if not user:
             app_logger.warning(
-                f"Failed login attempt for email: {email}",
-                email=email
+                "Failed login attempt",
             )
             return APIResponse.unauthorized(
                 message="Invalid credentials"
-            )
-
-        # Generate tokens
+            )        # Generate tokens
         refresh = RefreshToken.for_user(user)
 
         # Audit log

@@ -10,7 +10,7 @@ import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 import { calculateSubtotal, calculateTotal } from '@/utils/calculateSubtotal';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { RequestItem, CreatePurchaseRequestData } from '@/types';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Package } from 'lucide-react';
 
 const CreateRequestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -230,6 +230,7 @@ const CreateRequestPage: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Fill in the details for your purchase request</p>
         </div>
 
+        {/* Request Details Card */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-medium">Request Details</CardTitle>
@@ -238,28 +239,27 @@ const CreateRequestPage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Office Supplies Q1 2024"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="e.g., Office Supplies Q1 2024"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="vendor_name">Vendor/Supplier Name</Label>
-              <Input
-                id="vendor_name"
-                placeholder="e.g., Acme Office Supplies Inc."
-                value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-              />
-              <p className="text-xs text-gray-400">
-                Enter the name of the vendor or supplier for this purchase
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="vendor_name">Vendor/Supplier Name</Label>
+                <Input
+                  id="vendor_name"
+                  placeholder="e.g., Acme Office Supplies Inc."
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -283,113 +283,129 @@ const CreateRequestPage: React.FC = () => {
                 <CardTitle className="text-lg font-medium">Items</CardTitle>
                 <CardDescription>Add items to your purchase request</CardDescription>
               </div>
-              <Button onClick={handleAddItem} size="sm" variant="outline">
+              <Button onClick={handleAddItem} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-4 bg-white">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium text-gray-900">Item {index + 1}</h4>
-                    {items.length > 1 && (
-                      <Button
-                        onClick={() => handleRemoveItem(index)}
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor={`description-${index}`}>Description *</Label>
-                      <Input
-                        id={`description-${index}`}
-                        placeholder="Item description"
-                        value={item.description}
-                        onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                        required
-                      />
+            {items.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+                <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No items added yet</h3>
+                <p className="text-gray-500 mb-4">
+                  Click "Add Item" to start building your purchase request
+                </p>
+                <Button onClick={handleAddItem} variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Your First Item
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {items.map((item, index) => (
+                  <div key={index} className="border rounded-lg p-4 hover:border-gray-300 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <h4 className="text-sm font-medium text-gray-500">Item {index + 1}</h4>
+                      {items.length > 1 && (
+                        <Button
+                          onClick={() => handleRemoveItem(index)}
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 -mt-1 -mr-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor={`quantity-${index}`}>Quantity *</Label>
-                      <Input
-                        id={`quantity-${index}`}
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="1"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                        required
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`description-${index}`}>Description *</Label>
+                        <Input
+                          id={`description-${index}`}
+                          placeholder="Item description"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                          required
+                        />
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor={`unit-${index}`}>Unit</Label>
-                      <Input
-                        id={`unit-${index}`}
-                        placeholder="unit, kg, box..."
-                        value={item.unit_of_measure || ''}
-                        onChange={(e) => handleItemChange(index, 'unit_of_measure', e.target.value)}
-                      />
-                    </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`quantity-${index}`}>Quantity *</Label>
+                        <Input
+                          id={`quantity-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="1"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                          required
+                        />
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor={`price-${index}`}>Unit Price *</Label>
-                      <Input
-                        id={`price-${index}`}
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        value={item.unit_price}
-                        onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
-                        required
-                      />
-                    </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`unit-${index}`}>Unit of Measure</Label>
+                        <Input
+                          id={`unit-${index}`}
+                          placeholder="unit, kg, box..."
+                          value={item.unit_of_measure || ''}
+                          onChange={(e) => handleItemChange(index, 'unit_of_measure', e.target.value)}
+                        />
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label>Subtotal</Label>
-                      <div className="flex items-center h-10 px-3 py-2 border rounded-md bg-gray-50">
-                        <span className="font-medium text-gray-900">{formatCurrency(calculateSubtotal(item))}</span>
+                      <div className="space-y-2">
+                        <Label htmlFor={`price-${index}`}>Unit Price *</Label>
+                        <Input
+                          id={`price-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="0.00"
+                          value={item.unit_price}
+                          onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Subtotal</Label>
+                        <div className="flex items-center h-10 px-3 py-2 border rounded-md bg-gray-50">
+                          <span className="font-medium text-gray-900">{formatCurrency(calculateSubtotal(item))}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`notes-${index}`}>Notes</Label>
+                        <Textarea
+                          id={`notes-${index}`}
+                          placeholder="Additional notes for this item..."
+                          value={item.notes || ''}
+                          onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
+                          rows={2}
+                        />
                       </div>
                     </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor={`notes-${index}`}>Notes</Label>
-                      <Textarea
-                        id={`notes-${index}`}
-                        placeholder="Additional notes for this item..."
-                        value={item.notes || ''}
-                        onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
-                        rows={2}
-                      />
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-          <CardFooter className="border-t bg-gray-50">
-            <div className="flex items-center justify-between w-full">
-              <span className="text-sm text-gray-500">{items.length} item(s)</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-lg font-medium text-gray-700">Total:</span>
-                <span className="text-2xl font-semibold text-gray-900">
-                  {formatCurrency(getTotalAmount())}
-                </span>
+                ))}
               </div>
-            </div>
-          </CardFooter>
+            )}
+          </CardContent>
+          {items.length > 0 && (
+            <CardFooter className="border-t bg-gray-50">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-sm text-gray-500">{items.length} item(s)</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500">Total:</span>
+                  <span className="text-2xl font-semibold text-gray-900">
+                    {formatCurrency(getTotalAmount())}
+                  </span>
+                </div>
+              </div>
+            </CardFooter>
+          )}
         </Card>
 
         {/* Actions */}

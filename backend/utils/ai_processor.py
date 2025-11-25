@@ -31,6 +31,9 @@ except ImportError:
 
 IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'}
 
+# Maximum time to wait for file processing (in seconds)
+FILE_PROCESSING_TIMEOUT = 60
+
 MIME_TYPE_MAP = {
     '.pdf': 'application/pdf',
     '.png': 'image/png',
@@ -41,10 +44,32 @@ MIME_TYPE_MAP = {
     '.bmp': 'image/bmp',
 }
 
-EXTRACTION_PROMPT = """Extract the following information from this invoice/receipt document and return ONLY a valid JSON object.
+# Document types that are acceptable for processing
+VALID_DOCUMENT_TYPES = [
+    'invoice',
+    'proforma',
+    'proforma invoice',
+    'receipt',
+    'purchase order',
+    'quotation',
+    'quote',
+    'bill',
+    'tax invoice',
+    'commercial invoice',
+]
+
+EXTRACTION_PROMPT = """Analyze this document and return ONLY a valid JSON object.
+
+STEP 1: First, determine if this document is a valid financial/procurement document.
+Valid document types include: invoice, proforma, proforma invoice, receipt, purchase order, quotation, quote, bill, tax invoice, commercial invoice.
+
+STEP 2: If it IS a valid document, extract the information. If it is NOT a valid document (e.g., a random image, letter, contract, ID card, or unrelated document), indicate that in the response.
 
 Required JSON structure:
 {
+    "is_valid_document": true or false,
+    "document_type": "string describing document type or null if invalid",
+    "rejection_reason": "string explaining why document is invalid, or null if valid",
     "vendor_name": "string or null",
     "items": [
         {
@@ -59,13 +84,17 @@ Required JSON structure:
 }
 
 Rules:
-1. If you cannot find a field, set it to null
-2. Ensure items array has at least one item if possible
-3. quantity and unit_price should be numbers (not strings)
-4. Return ONLY the JSON object, no markdown formatting, no additional text
-5. Ensure the JSON is valid and parseable
+1. Set is_valid_document to false if the document is NOT an invoice, proforma, receipt, quotation, or similar procurement document
+2. If is_valid_document is false, set rejection_reason to explain what type of document it appears to be and why it cannot be processed
+3. If is_valid_document is false, set items to an empty array and other extraction fields to null
+4. If is_valid_document is true, extract all available information
+5. If you cannot find a field, set it to null
+6. Ensure items array has at least one item if the document is valid
+7. quantity and unit_price should be numbers (not strings)
+8. Return ONLY the JSON object, no markdown formatting, no additional text
+9. Ensure the JSON is valid and parseable
 
-Analyze the document carefully and extract all invoice information."""
+Analyze the document carefully."""
 
 
 def get_file_extension(filename: str) -> str:
@@ -111,6 +140,9 @@ def parse_json_response(response_text: str, provider_name: str) -> Optional[Dict
         data = json.loads(cleaned)
 
         # Ensure required fields have defaults
+        data.setdefault('is_valid_document', True)  # Default to true for backwards compatibility
+        data.setdefault('document_type', None)
+        data.setdefault('rejection_reason', None)
         data.setdefault('items', [])
         data.setdefault('vendor_name', None)
         data.setdefault('total_amount', None)
@@ -121,6 +153,42 @@ def parse_json_response(response_text: str, provider_name: str) -> Optional[Dict
     except Exception as e:
         app_logger.error(f"[{provider_name}] Parse error: {e}")
         return None
+
+
+def validate_document_response(data: Dict) -> Dict:
+    """
+    Check if the AI response indicates a valid document and build appropriate response.
+
+    Args:
+        data: Parsed AI response data
+
+    Returns:
+        Dict with validation result or error
+    """
+    is_valid = data.get('is_valid_document', True)
+
+    if not is_valid:
+        rejection_reason = data.get('rejection_reason') or 'This document does not appear to be a valid invoice, proforma, receipt, or quotation.'
+        document_type = data.get('document_type')
+
+        error_message = f"Invalid document type. {rejection_reason}"
+        if document_type:
+            error_message = f"Invalid document type: '{document_type}'. {rejection_reason}"
+
+        app_logger.warning(f"Document validation failed: {error_message}")
+
+        return {
+            'success': False,
+            'is_valid_document': False,
+            'document_type': document_type,
+            'error': error_message,
+            'user_message': 'Please upload a valid proforma invoice, receipt, or quotation. The uploaded document does not appear to be a supported document type.'
+        }
+
+    return {
+        'is_valid': True,
+        'data': data
+    }
 
 
 def is_quota_error(error: Exception) -> bool:
@@ -148,10 +216,29 @@ def build_error_response(error: Exception, provider_name: str, retry_fallback: b
 
 
 def build_success_response(data: Dict, provider_name: str) -> Dict:
-    """Build standardized success response"""
-    data['success'] = True
-    data['provider'] = provider_name
-    return data
+    """
+    Build standardized success response after validating document type.
+
+    Args:
+        data: Parsed AI response data
+        provider_name: Name of the provider
+
+    Returns:
+        Dict with success response or validation error
+    """
+    # First validate that the document is a valid type
+    validation_result = validate_document_response(data)
+
+    if not validation_result.get('is_valid'):
+        # Document type validation failed - return the error response
+        validation_result['provider'] = provider_name
+        return validation_result
+
+    # Document is valid, build success response
+    validated_data = validation_result['data']
+    validated_data['success'] = True
+    validated_data['provider'] = provider_name
+    return validated_data
 
 
 class AIProvider:
@@ -279,14 +366,23 @@ class GeminiProvider(AIProvider):
             )
 
             try:
-                # Wait for file to be processed
+                # Wait for file to be processed with timeout
                 app_logger.debug("[Gemini] Waiting for file processing...")
+                elapsed_time = 0
                 while uploaded_file.state.name == "PROCESSING":
+                    if elapsed_time >= FILE_PROCESSING_TIMEOUT:
+                        app_logger.error(f"[Gemini] File processing timeout after {FILE_PROCESSING_TIMEOUT}s")
+                        return {
+                            'error': f'File processing timed out after {FILE_PROCESSING_TIMEOUT} seconds',
+                            'success': False,
+                            'retry_with_fallback': True
+                        }
                     time.sleep(1)
+                    elapsed_time += 1
                     uploaded_file = genai.get_file(uploaded_file.name)
 
                 if uploaded_file.state.name == "FAILED":
-                    return {'error': 'Gemini file processing failed', 'success': False}
+                    return {'error': 'Gemini file processing failed', 'success': False, 'retry_with_fallback': True}
 
                 app_logger.debug(f"[Gemini] File ready: {uploaded_file.uri}")
 
@@ -402,6 +498,11 @@ class DocumentProcessor:
 
             if result.get('success'):
                 app_logger.info(f"Success with {provider.name}")
+                return result
+
+            # Check if document type validation failed - don't retry with other providers
+            if result.get('is_valid_document') is False:
+                app_logger.info(f"Document validation failed - not retrying with other providers")
                 return result
 
             error = result.get('error', 'Unknown error')

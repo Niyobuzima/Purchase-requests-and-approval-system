@@ -216,7 +216,7 @@ RECEIPT_ROLE_FILTERS = {
 }
 
 APPROVAL_ROLE_FILTERS = {
-    UserRole.STAFF: {},  # Staff can see approvals on their requests
+    UserRole.STAFF: {'request__requester': 'user'},
     UserRole.APPROVER_L1: {'level': 'L1'},
     UserRole.APPROVER_L2: {'level': 'L2'},
     UserRole.FINANCE: {},

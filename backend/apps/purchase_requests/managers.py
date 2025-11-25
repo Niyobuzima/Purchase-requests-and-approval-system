@@ -96,7 +96,7 @@ class PurchaseRequestManager(models.Manager):
         """
         Return requests that are not in a final state.
         """
-        return self.exclude(status__in=['APPROVED', 'REJECTED'])
+        return self.exclude(status__in=['APPROVED', 'REJECTED', 'REJECTED_L1', 'REJECTED_L2'])
 
     def recent(self, days=30):
         """

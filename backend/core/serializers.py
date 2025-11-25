@@ -270,11 +270,23 @@ class NestedCreateUpdateMixin:
         Returns:
             List of created/updated item instances
         """
-        # Get existing items
-        existing_items = {
-            getattr(item, item_id_field): item
-            for item in getattr(parent_instance, f'{parent_field_name}s').all()
-        }
+def update_nested_items(
+    self,
+    parent_instance,
+    items_data: List[dict],
+    item_model,
+    parent_field_name: str,
+    item_id_field: str = 'id',
+    related_name: str = None
+) -> List[Any]:
+    # ... (earlier code)
+    
+    # Get existing items
+    related_name = related_name or f'{parent_field_name}s'
+    existing_items = {
+        getattr(item, item_id_field): item
+        for item in getattr(parent_instance, related_name).all()
+    }
 
         updated_items = []
         seen_ids = set()

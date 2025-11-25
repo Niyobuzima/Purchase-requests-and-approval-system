@@ -120,6 +120,22 @@ class ReceiptViewSet(viewsets.ModelViewSet):
 
                 # Automatically run validation after extraction
                 self._auto_validate_receipt(receipt)
+            elif extracted_data.get('is_valid_document') is False:
+                # Document type validation failed - not a valid receipt
+                app_logger.warning(
+                    f"Invalid document type uploaded for receipt {receipt.id}",
+                    receipt_id=receipt.id,
+                    document_type=extracted_data.get('document_type'),
+                    error=extracted_data.get('error')
+                )
+                # Save the error info and mark as failed validation
+                receipt.extracted_receipt_data = extracted_data
+                receipt.validation_status = 'FAILED'
+                receipt.validation_notes = extracted_data.get(
+                    'user_message',
+                    'Invalid document type. Please upload a valid receipt.'
+                )
+                receipt.save(update_fields=['extracted_receipt_data', 'validation_status', 'validation_notes'])
             else:
                 app_logger.warning(
                     f"AI extraction failed for receipt {receipt.id}",

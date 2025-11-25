@@ -115,6 +115,13 @@ export interface RequestItem {
 }
 
 export interface ExtractedDocumentData {
+  // Document validation fields
+  is_valid_document?: boolean;
+  document_type?: string | null;
+  rejection_reason?: string | null;
+  user_message?: string;
+
+  // Extracted data fields
   vendor_name?: string | null;
   items?: Array<{
     description: string;
@@ -124,8 +131,11 @@ export interface ExtractedDocumentData {
   total_amount?: number | null;
   invoice_number?: string | null;
   date?: string | null;
+
+  // Processing status
   success?: boolean;
   error?: string;
+  provider?: string;
 }
 
 export interface PurchaseRequest {

@@ -137,6 +137,21 @@ const CreateRequestPage: React.FC = () => {
       const response = await purchaseRequestsAPI.processDocument(currentRequestId);
       setExtractedData(response.extracted_data);
 
+      // Check if document validation failed (invalid document type)
+      if (response.extracted_data.is_valid_document === false) {
+        toast({
+          title: 'Invalid Document Type',
+          description: response.extracted_data.user_message || 'Please upload a valid proforma invoice, receipt, or quotation.',
+          variant: 'destructive',
+        });
+        // Go back to upload step so user can upload correct document
+        setStep('upload');
+        setSelectedFile(null);
+        setUploadedFileUrl(null);
+        setCurrentRequestId(null);
+        return;
+      }
+
       if (response.document_processed && response.extracted_data.success) {
         // Auto-fill form
         if (response.extracted_data.vendor_name) {
@@ -552,25 +567,54 @@ const CreateRequestPage: React.FC = () => {
 
             {/* AI Extraction Status */}
             {useAI && extractedData && (
-              <Card className={`mb-6 ${extractedData.success ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+              <Card className={`mb-6 ${
+                extractedData.is_valid_document === false
+                  ? 'bg-red-50 border-red-200'
+                  : extractedData.success
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-amber-50 border-amber-200'
+              }`}>
                 <CardContent className="py-4">
                   <div className="flex items-start gap-3">
-                    {extractedData.success ? (
+                    {extractedData.is_valid_document === false ? (
+                      <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0" />
+                    ) : extractedData.success ? (
                       <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0" />
                     ) : (
                       <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0" />
                     )}
                     <div className="flex-1">
-                      <p className={`font-medium ${extractedData.success ? 'text-green-900' : 'text-amber-900'}`}>
-                        {extractedData.success
-                          ? `AI Extracted ${extractedData.items?.length || 0} Items`
-                          : 'AI Could Not Extract All Data'}
+                      <p className={`font-medium ${
+                        extractedData.is_valid_document === false
+                          ? 'text-red-900'
+                          : extractedData.success
+                            ? 'text-green-900'
+                            : 'text-amber-900'
+                      }`}>
+                        {extractedData.is_valid_document === false
+                          ? 'Invalid Document Type'
+                          : extractedData.success
+                            ? `AI Extracted ${extractedData.items?.length || 0} Items`
+                            : 'AI Could Not Extract All Data'}
                       </p>
-                      <p className={`text-sm ${extractedData.success ? 'text-green-700' : 'text-amber-700'}`}>
-                        {extractedData.success
-                          ? 'Review the details below and make any necessary changes.'
-                          : extractedData.error || 'Please fill in the missing details manually.'}
+                      <p className={`text-sm ${
+                        extractedData.is_valid_document === false
+                          ? 'text-red-700'
+                          : extractedData.success
+                            ? 'text-green-700'
+                            : 'text-amber-700'
+                      }`}>
+                        {extractedData.is_valid_document === false
+                          ? extractedData.user_message || 'Please upload a valid proforma invoice, receipt, or quotation.'
+                          : extractedData.success
+                            ? 'Review the details below and make any necessary changes.'
+                            : extractedData.error || 'Please fill in the missing details manually.'}
                       </p>
+                      {extractedData.document_type && extractedData.is_valid_document === false && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Detected document type: {extractedData.document_type}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>

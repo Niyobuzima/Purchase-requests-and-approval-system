@@ -82,7 +82,8 @@ class RolePermission(BasePermission):
         if not roles:
             return True  # No role restriction
 
-        return request.user.role in roles
+        user_role = getattr(request.user, 'role', None)
+        return user_role in roles
 
 
 class IsStaff(RolePermission):
@@ -157,7 +158,12 @@ class CanApproveLevel(BasePermission):
             # Status doesn't require approval, deny
             return False
 
-        return request.user.role == required_role
+        # Safely get user role
+        user_role = getattr(request.user, 'role', None)
+        if user_role is None:
+            return False
+
+        return user_role == required_role
 
 
 class CanApproveRequest(CanApproveLevel):
@@ -178,20 +184,25 @@ class CanApproveAtLevel(BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
+        # Safely get user role
+        user_role = getattr(request.user, 'role', None)
+        if user_role is None:
+            return False
+
         # For approval objects
         if hasattr(obj, 'level'):
             if obj.level == 'L1':
-                return request.user.role == UserRole.APPROVER_L1
+                return user_role == UserRole.APPROVER_L1
             elif obj.level == 'L2':
-                return request.user.role == UserRole.APPROVER_L2
+                return user_role == UserRole.APPROVER_L2
 
         # For request objects, check status
         if hasattr(obj, 'status'):
             status = obj.status
             if status == 'PENDING_L1':
-                return request.user.role == UserRole.APPROVER_L1
+                return user_role == UserRole.APPROVER_L1
             elif status == 'PENDING_L2':
-                return request.user.role == UserRole.APPROVER_L2
+                return user_role == UserRole.APPROVER_L2
 
         return False
 

@@ -332,25 +332,30 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             instance.document_file = document_file
             instance.save()
 
-            # Cache temp file path for AI processing
+            # Cache temp file path for AI processing with timestamp for cleanup
             cache_key = f'upload_file_{instance.id}'
             cache.set(cache_key, {
                 'temp_path': temp_path,
-                'name': file_name
+                'name': file_name,
+                'created_at': os.path.getmtime(temp_path)
             }, timeout=TEMP_FILE_CACHE_TIMEOUT)
 
             app_logger.info(
-                f"Document uploaded for request {instance.id}",
+                f"Document uploaded for request {instance.id}, temp file cached",
                 user_id=request.user.id,
-                file_name=file_name
+                file_name=file_name,
+                temp_path=temp_path
             )
 
         except Exception as e:
             # Clean up temp file on error
             try:
                 os.unlink(temp_path)
-            except:
-                pass
+            except Exception as cleanup_error:
+                app_logger.warning(
+                    f"Failed to cleanup temp file {temp_path}: {cleanup_error}",
+                    user_id=request.user.id
+                )
             app_logger.error(
                 f"Failed to upload document for request {instance.id}: {e}",
                 exc_info=True,
@@ -430,17 +435,33 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             instance.document_processed = extracted_data.get('success', False)
             instance.save()
 
+            # Check if document validation failed (invalid document type)
+            is_invalid_document = extracted_data.get('is_valid_document') is False
+
             audit_log(
                 action='PROCESS_DOCUMENT',
                 user=request.user,
                 resource_type='PurchaseRequest',
                 resource_id=instance.id,
-                details={'success': instance.document_processed},
+                details={
+                    'success': instance.document_processed,
+                    'is_valid_document': not is_invalid_document,
+                    'document_type': extracted_data.get('document_type')
+                },
                 request=request
             )
 
+            # Return appropriate message based on result
+            if instance.document_processed:
+                message = 'Document processed successfully'
+            elif is_invalid_document:
+                # Use user-friendly message for invalid document types
+                message = extracted_data.get('user_message', 'Invalid document type. Please upload a valid proforma invoice, receipt, or quotation.')
+            else:
+                message = 'Document processing completed with issues'
+
             return APIResponse.success(
-                message='Document processed successfully' if instance.document_processed else 'Document processing completed with issues',
+                message=message,
                 extracted_data=extracted_data,
                 document_processed=instance.document_processed
             )
