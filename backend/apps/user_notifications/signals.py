@@ -55,8 +55,7 @@ def notify_on_request_submitted(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Approval)
 def notify_on_approval_status_change(sender, instance, created, **kwargs):
     """Notify requester when their request is approved or rejected"""
-    # Skip if this is just the initial creation of the approval record
-    # We only want to notify when the status is actually changed (approved/rejected)
+    
     if instance.status == Approval.Status.PENDING:
         return
 

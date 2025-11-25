@@ -1,12 +1,19 @@
-import logging
-from rest_framework import viewsets, status
+"""
+Reports Views.
+
+This module handles report generation and export operations including:
+- Purchase Orders CSV export
+- Receipts CSV export
+- Spending Summary PDF export
+- Approval Timeline CSV export
+- Export history tracking
+"""
+
+from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db.models import Sum, Count, Avg, Q
-from django.utils import timezone
-from datetime import datetime, timedelta
+
 from apps.purchase_orders.models import PurchaseOrder
 from apps.receipts.models import Receipt
 from apps.purchase_requests.models import PurchaseRequest
@@ -20,7 +27,10 @@ from .utils import (
     generate_approval_timeline_csv
 )
 
-logger = logging.getLogger(__name__)
+# Import core utilities
+from core.responses import APIResponse
+from core.logging_utils import app_logger, log_view_action, audit_log
+from core.constants import ErrorCode
 
 
 class ReportViewSet(viewsets.ViewSet):
@@ -62,6 +72,7 @@ class ReportViewSet(viewsets.ViewSet):
         return queryset
 
     @action(detail=False, methods=['post'], url_path='export')
+    @log_view_action("Export Report")
     def export_data(self, request):
         """
         Export data based on parameters
@@ -69,7 +80,10 @@ class ReportViewSet(viewsets.ViewSet):
         """
         serializer = ExportRequestSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return APIResponse.validation_error(
+                errors=serializer.errors,
+                message="Invalid export parameters"
+            )
 
         export_type = serializer.validated_data['export_type']
         export_format = serializer.validated_data['export_format']
@@ -92,9 +106,9 @@ class ReportViewSet(viewsets.ViewSet):
                 if export_format == 'CSV':
                     response = generate_purchase_orders_csv(queryset, filters)
                 else:
-                    return Response(
-                        {'error': 'PDF format not supported for Purchase Orders. Use CSV or Spending Summary.'},
-                        status=status.HTTP_400_BAD_REQUEST
+                    return APIResponse.error(
+                        message="PDF format not supported for Purchase Orders. Use CSV or Spending Summary.",
+                        code=ErrorCode.VALIDATION_ERROR
                     )
 
             elif export_type == 'RECEIPTS':
@@ -110,9 +124,9 @@ class ReportViewSet(viewsets.ViewSet):
                 if export_format == 'CSV':
                     response = generate_receipts_csv(queryset, filters)
                 else:
-                    return Response(
-                        {'error': 'PDF format not supported for Receipts. Use CSV.'},
-                        status=status.HTTP_400_BAD_REQUEST
+                    return APIResponse.error(
+                        message="PDF format not supported for Receipts. Use CSV.",
+                        code=ErrorCode.VALIDATION_ERROR
                     )
 
             elif export_type == 'SPENDING_SUMMARY':
@@ -181,9 +195,9 @@ class ReportViewSet(viewsets.ViewSet):
                 if export_format == 'PDF':
                     response = generate_spending_summary_pdf(summary_data, filters)
                 else:
-                    return Response(
-                        {'error': 'CSV format not supported for Spending Summary. Use PDF.'},
-                        status=status.HTTP_400_BAD_REQUEST
+                    return APIResponse.error(
+                        message="CSV format not supported for Spending Summary. Use PDF.",
+                        code=ErrorCode.VALIDATION_ERROR
                     )
 
             elif export_type == 'APPROVAL_TIMELINE':
@@ -216,15 +230,15 @@ class ReportViewSet(viewsets.ViewSet):
                 if export_format == 'CSV':
                     response = generate_approval_timeline_csv(queryset, filters)
                 else:
-                    return Response(
-                        {'error': 'PDF format not supported for Approval Timeline. Use CSV.'},
-                        status=status.HTTP_400_BAD_REQUEST
+                    return APIResponse.error(
+                        message="PDF format not supported for Approval Timeline. Use CSV.",
+                        code=ErrorCode.VALIDATION_ERROR
                     )
 
             else:
-                return Response(
-                    {'error': 'Invalid export type'},
-                    status=status.HTTP_400_BAD_REQUEST
+                return APIResponse.error(
+                    message="Invalid export type",
+                    code=ErrorCode.VALIDATION_ERROR
                 )
 
             # Log the export
@@ -238,7 +252,7 @@ class ReportViewSet(viewsets.ViewSet):
             if filters.get('end_date'):
                 filters_for_log['end_date'] = filters['end_date'].isoformat() if hasattr(filters['end_date'], 'isoformat') else str(filters['end_date'])
 
-            ExportLog.objects.create(
+            export_log = ExportLog.objects.create(
                 user=request.user,
                 export_type=export_type,
                 export_format=export_format,
@@ -248,46 +262,59 @@ class ReportViewSet(viewsets.ViewSet):
                 record_count=record_count,
             )
 
+            # Audit log
+            audit_log(
+                action='EXPORT_REPORT',
+                user=request.user,
+                resource_type='ExportLog',
+                resource_id=export_log.id,
+                details={
+                    'export_type': export_type,
+                    'export_format': export_format,
+                    'record_count': record_count,
+                },
+                request=request
+            )
+
+            app_logger.info(
+                f"Report exported: {export_type} as {export_format}",
+                user_id=request.user.id,
+                export_type=export_type,
+                record_count=record_count
+            )
+
             return response
 
         except ValidationError as e:
-            logger.warning(
+            app_logger.warning(
                 f"Validation error during export: {str(e)}",
-                extra={
-                    'user': request.user.username,
-                    'export_type': export_type,
-                    'export_format': export_format,
-                }
+                user_id=request.user.id,
+                export_type=export_type,
+                export_format=export_format
             )
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.validation_error(
+                errors={'detail': str(e)},
+                message=str(e)
             )
         except PermissionDenied as e:
-            logger.warning(
+            app_logger.warning(
                 f"Permission denied during export: {str(e)}",
-                extra={
-                    'user': request.user.username,
-                    'export_type': export_type,
-                }
+                user_id=request.user.id,
+                export_type=export_type
             )
-            return Response(
-                {'error': 'You do not have permission to perform this export'},
-                status=status.HTTP_403_FORBIDDEN
+            return APIResponse.forbidden(
+                message="You do not have permission to perform this export"
             )
         except Exception as e:
-            logger.exception(
-                "Unexpected error during export",
-                extra={
-                    'user': request.user.username,
-                    'export_type': export_type,
-                    'export_format': export_format,
-                    'filters': filters_for_log if 'filters_for_log' in locals() else filters,
-                }
+            app_logger.error(
+                f"Unexpected error during export: {e}",
+                exc_info=True,
+                user_id=request.user.id,
+                export_type=export_type,
+                export_format=export_format
             )
-            return Response(
-                {'error': 'An unexpected error occurred while generating the report. Please try again or contact support.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return APIResponse.server_error(
+                message="An unexpected error occurred while generating the report. Please try again or contact support."
             )
 
     @action(detail=False, methods=['get'], url_path='history')
@@ -298,7 +325,7 @@ class ReportViewSet(viewsets.ViewSet):
         """
         logs = ExportLog.objects.filter(user=request.user)[:20]
         serializer = ExportLogSerializer(logs, many=True)
-        return Response(serializer.data)
+        return APIResponse.success(data=serializer.data)
 
     @action(detail=False, methods=['get'], url_path='preview')
     def preview_data(self, request):
@@ -334,7 +361,7 @@ class ReportViewSet(viewsets.ViewSet):
         else:
             data = []
 
-        return Response({
+        return APIResponse.success(data={
             'preview': data,
             'total_count': self.get_queryset_with_filters(
                 PurchaseOrder if export_type == 'PURCHASE_ORDERS' else Receipt,

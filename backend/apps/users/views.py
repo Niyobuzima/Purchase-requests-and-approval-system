@@ -1,5 +1,14 @@
+"""
+User Views.
+
+This module handles user management operations including:
+- Registration and authentication
+- Profile management
+- Password changes
+- Admin user management
+"""
+
 from rest_framework import status, generics
-from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -7,7 +16,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 from django.db.models import Count, Q
 from django_filters import rest_framework as filters
-import logging
+
 from apps.users.serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -19,9 +28,12 @@ from apps.users.serializers import (
 )
 from apps.users.permissions import IsAdmin
 
-User = get_user_model()
+# Import core utilities
+from core.responses import APIResponse
+from core.logging_utils import app_logger, log_view_action, audit_log
+from core.constants import ErrorCode
 
-logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 class RegisterView(generics.CreateAPIView):
@@ -39,13 +51,31 @@ class RegisterView(generics.CreateAPIView):
         # Generate tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            'user': UserSerializer(user).data,
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        }, status=status.HTTP_201_CREATED)
+        # Audit log
+        audit_log(
+            action='REGISTER',
+            user=user,
+            resource_type='User',
+            resource_id=user.id,
+            details={'email': user.email},
+            request=request
+        )
+
+        app_logger.info(
+            f"New user registered: {user.email}",
+            user_id=user.id
+        )
+
+        return APIResponse.created(
+            data={
+                'user': UserSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            },
+            message="Registration successful"
+        )
 
 
 class LoginView(generics.GenericAPIView):
@@ -65,21 +95,41 @@ class LoginView(generics.GenericAPIView):
         user = authenticate(request, username=email, password=password)
 
         if not user:
-            return Response(
-                {'error': 'Invalid credentials'},
-                status=status.HTTP_401_UNAUTHORIZED
+            app_logger.warning(
+                f"Failed login attempt for email: {email}",
+                email=email
+            )
+            return APIResponse.unauthorized(
+                message="Invalid credentials"
             )
 
         # Generate tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            'user': UserSerializer(user).data,
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        })
+        # Audit log
+        audit_log(
+            action='LOGIN',
+            user=user,
+            resource_type='User',
+            resource_id=user.id,
+            request=request
+        )
+
+        app_logger.info(
+            f"User logged in: {user.email}",
+            user_id=user.id
+        )
+
+        return APIResponse.success(
+            data={
+                'user': UserSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            },
+            message="Login successful"
+        )
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -106,16 +156,30 @@ class ChangePasswordView(generics.UpdateAPIView):
 
         # Check old password
         if not user.check_password(serializer.validated_data['old_password']):
-            return Response(
-                {'old_password': 'Wrong password'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.validation_error(
+                errors={'old_password': ['Wrong password']},
+                message="Current password is incorrect"
             )
 
         # Set new password
         user.set_password(serializer.validated_data['new_password'])
         user.save()
 
-        return Response({'message': 'Password updated successfully'})
+        # Audit log
+        audit_log(
+            action='CHANGE_PASSWORD',
+            user=user,
+            resource_type='User',
+            resource_id=user.id,
+            request=request
+        )
+
+        app_logger.info(
+            f"Password changed for user: {user.email}",
+            user_id=user.id
+        )
+
+        return APIResponse.success(message="Password updated successfully")
 
 
 class LogoutView(generics.GenericAPIView):
@@ -127,30 +191,46 @@ class LogoutView(generics.GenericAPIView):
         try:
             refresh_token = request.data.get('refresh_token')
             if not refresh_token:
-                return Response(
-                    {'error': 'Refresh token is required'},
-                    status=status.HTTP_400_BAD_REQUEST
+                return APIResponse.validation_error(
+                    errors={'refresh_token': ['Refresh token is required']},
+                    message="Refresh token is required"
                 )
 
             # Blacklist the refresh token
             token = RefreshToken(refresh_token)
             token.blacklist()
 
-            return Response(
-                {'message': 'Logout successful'},
-                status=status.HTTP_205_RESET_CONTENT
+            # Audit log
+            audit_log(
+                action='LOGOUT',
+                user=request.user,
+                resource_type='User',
+                resource_id=request.user.id,
+                request=request
+            )
+
+            app_logger.info(
+                f"User logged out: {request.user.email}",
+                user_id=request.user.id
+            )
+
+            return APIResponse.success(
+                message="Logout successful",
+                status_code=status.HTTP_205_RESET_CONTENT
             )
         except TokenError:
-            return Response(
-                {'error': 'Invalid or expired token'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.error(
+                message="Invalid or expired token",
+                code=ErrorCode.INVALID_TOKEN
             )
         except Exception as e:
-            # Log the full exception for debugging
-            logger.exception('Unexpected error during logout')
-            return Response(
-                {'error': 'Logout failed due to an unexpected error'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            app_logger.error(
+                f"Unexpected error during logout: {e}",
+                exc_info=True,
+                user_id=request.user.id
+            )
+            return APIResponse.server_error(
+                message="Logout failed due to an unexpected error"
             )
 
 
@@ -196,9 +276,29 @@ class AdminUserListView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(
-            AdminUserSerializer(user).data,
-            status=status.HTTP_201_CREATED
+
+        # Audit log
+        audit_log(
+            action='ADMIN_CREATE_USER',
+            user=request.user,
+            resource_type='User',
+            resource_id=user.id,
+            details={
+                'created_email': user.email,
+                'created_role': user.role,
+            },
+            request=request
+        )
+
+        app_logger.info(
+            f"Admin {request.user.email} created user: {user.email}",
+            admin_id=request.user.id,
+            created_user_id=user.id
+        )
+
+        return APIResponse.created(
+            data=AdminUserSerializer(user).data,
+            message="User created successfully"
         )
 
 
@@ -224,35 +324,79 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Prevent admin from changing their own role
         if instance == request.user and 'role' in serializer.validated_data:
             if serializer.validated_data['role'] != instance.role:
-                return Response(
-                    {'error': 'You cannot change your own role'},
-                    status=status.HTTP_400_BAD_REQUEST
+                return APIResponse.error(
+                    message="You cannot change your own role",
+                    code=ErrorCode.PERMISSION_DENIED
                 )
 
         # Prevent admin from deactivating themselves
         if instance == request.user and 'is_active' in serializer.validated_data:
             if serializer.validated_data['is_active'] is False:
-                return Response(
-                    {'error': 'You cannot deactivate your own account'},
-                    status=status.HTTP_400_BAD_REQUEST
+                return APIResponse.error(
+                    message="You cannot deactivate your own account",
+                    code=ErrorCode.PERMISSION_DENIED
                 )
 
         self.perform_update(serializer)
 
-        return Response(AdminUserSerializer(instance).data)
+        # Audit log
+        audit_log(
+            action='ADMIN_UPDATE_USER',
+            user=request.user,
+            resource_type='User',
+            resource_id=instance.id,
+            details={
+                'updated_email': instance.email,
+                'changes': list(serializer.validated_data.keys()),
+            },
+            request=request
+        )
+
+        app_logger.info(
+            f"Admin {request.user.email} updated user: {instance.email}",
+            admin_id=request.user.id,
+            updated_user_id=instance.id
+        )
+
+        return APIResponse.success(
+            data=AdminUserSerializer(instance).data,
+            message="User updated successfully"
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
 
         # Prevent admin from deleting themselves
         if instance == request.user:
-            return Response(
-                {'error': 'You cannot delete your own account'},
-                status=status.HTTP_400_BAD_REQUEST
+            return APIResponse.error(
+                message="You cannot delete your own account",
+                code=ErrorCode.PERMISSION_DENIED
             )
 
+        # Audit log before deletion
+        audit_log(
+            action='ADMIN_DELETE_USER',
+            user=request.user,
+            resource_type='User',
+            resource_id=instance.id,
+            details={
+                'deleted_email': instance.email,
+                'deleted_role': instance.role,
+            },
+            request=request
+        )
+
+        app_logger.info(
+            f"Admin {request.user.email} deleted user: {instance.email}",
+            admin_id=request.user.id,
+            deleted_user_id=instance.id
+        )
+
         self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return APIResponse.success(
+            message="User deleted successfully",
+            status_code=status.HTTP_204_NO_CONTENT
+        )
 
 
 class AdminDashboardStatsView(APIView):
@@ -275,7 +419,7 @@ class AdminDashboardStatsView(APIView):
         # Recent users (last 10)
         recent_users = User.objects.order_by('-created_at')[:10]
 
-        return Response({
+        return APIResponse.success(data={
             'total_users': total_users,
             'active_users': active_users,
             'inactive_users': inactive_users,
