@@ -4,8 +4,26 @@ import ProtectedRoute from '../components/auth/ProtectedRoute';
 import Layout from '../components/layout/Layout';
 import LoginPage from '../features/auth/LoginPage';
 import RegisterPage from '../features/auth/RegisterPage';
-import HomePage from '../features/common/HomePage';
 import ProfilePage from '../features/profile/ProfilePage';
+import { useAuth } from '../hooks/useAuth';
+import type { UserRole } from '../types';
+
+// Redirect to role-based dashboard
+const RoleBasedRedirect: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) return <Navigate to="/login" replace />;
+
+  const roleRoutes: Record<UserRole, string> = {
+    STAFF: '/staff/dashboard',
+    APPROVER_L1: '/approver/dashboard',
+    APPROVER_L2: '/approver/dashboard',
+    FINANCE: '/finance/dashboard',
+    ADMIN: '/admin/dashboard',
+  };
+
+  return <Navigate to={roleRoutes[user.role] || '/login'} replace />;
+};
 
 // Purchase Request Components
 import RequestsListPage from '../features/requests/RequestsListPage';
@@ -63,7 +81,7 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <HomePage />,
+        element: <RoleBasedRedirect />,
       },
       {
         path: 'profile',

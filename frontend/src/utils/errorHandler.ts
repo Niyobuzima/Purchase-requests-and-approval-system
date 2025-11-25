@@ -81,16 +81,33 @@ function getErrorType(statusCode?: number): ErrorType {
  */
 function getErrorTitle(type: ErrorType): string {
   const titles: Record<ErrorType, string> = {
-    [ErrorType.VALIDATION]: 'Validation Error',
-    [ErrorType.AUTHENTICATION]: 'Authentication Failed',
-    [ErrorType.AUTHORIZATION]: 'Access Denied',
-    [ErrorType.NETWORK]: 'Network Error',
-    [ErrorType.SERVER]: 'Server Error',
+    [ErrorType.VALIDATION]: 'Please Fix the Following',
+    [ErrorType.AUTHENTICATION]: 'Authentication Required',
+    [ErrorType.AUTHORIZATION]: 'Permission Denied',
+    [ErrorType.NETWORK]: 'Connection Problem',
+    [ErrorType.SERVER]: 'Something Went Wrong',
     [ErrorType.NOT_FOUND]: 'Not Found',
-    [ErrorType.UNKNOWN]: 'Error',
+    [ErrorType.UNKNOWN]: 'Unexpected Error',
   };
 
   return titles[type];
+}
+
+/**
+ * Get helpful suggestion based on error type
+ */
+function getErrorSuggestion(type: ErrorType): string {
+  const suggestions: Record<ErrorType, string> = {
+    [ErrorType.VALIDATION]: '',
+    [ErrorType.AUTHENTICATION]: 'Please sign in again to continue.',
+    [ErrorType.AUTHORIZATION]: 'You don\'t have permission to perform this action.',
+    [ErrorType.NETWORK]: 'Please check your internet connection and try again.',
+    [ErrorType.SERVER]: 'Our servers are having issues. Please try again in a few moments.',
+    [ErrorType.NOT_FOUND]: 'The item you\'re looking for doesn\'t exist or has been removed.',
+    [ErrorType.UNKNOWN]: 'Please try again. If the problem persists, contact support.',
+  };
+
+  return suggestions[type];
 }
 
 /**
@@ -106,8 +123,8 @@ export function handleError(error: unknown): AppError {
     if (!axiosError.response) {
       return {
         type: ErrorType.NETWORK,
-        title: 'Network Error',
-        message: 'Unable to connect to the server. Please check your internet connection.',
+        title: getErrorTitle(ErrorType.NETWORK),
+        message: getErrorSuggestion(ErrorType.NETWORK),
         originalError: error,
       };
     }
@@ -247,9 +264,10 @@ export const ErrorHandlers = {
   auth: (error: unknown): AppError => {
     const appError = handleError(error);
 
-    // Customize message for common auth errors
+    // Customize title and message for login failures
     if (appError.type === ErrorType.AUTHENTICATION) {
-      appError.message = 'Invalid email or password. Please try again.';
+      appError.title = 'Login Failed';
+      appError.message = 'The email or password you entered is incorrect.';
     }
 
     return appError;

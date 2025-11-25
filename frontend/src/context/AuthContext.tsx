@@ -9,6 +9,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   register: (userData: RegisterData) => Promise<User>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -93,12 +94,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return user;
   };
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const userData = await authAPI.getProfile();
+      setUser(userData);
+    } catch (error) {
+      // If profile fetch fails, user might be logged out
+      console.error('Failed to refresh user profile:', error);
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     loading,
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
   };
 

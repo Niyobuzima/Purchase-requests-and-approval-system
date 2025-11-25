@@ -14,7 +14,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ApprovalTimeline } from '@/components/approvals/ApprovalTimeline';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { POPreviewModal } from '@/components/pdf/POPreviewModal';
-import { ArrowLeft, Send, Trash2, Edit, DollarSign, AlertTriangle, CheckCircle2, XCircle, FileText, Download, Eye, ExternalLink, FileImage } from 'lucide-react';
+import { DeleteConfirmationDialog } from '@/components/common/ConfirmationDialog';
+import { ArrowLeft, Send, Trash2, Edit, Download, Eye, ExternalLink } from 'lucide-react';
 
 const RequestDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,7 +75,6 @@ const RequestDetailPage: React.FC = () => {
           const approvals = await approvalsAPI.getByRequestId(requestId);
           setAllApprovals(approvals);
 
-          // If user is an approver, find their pending approval
           if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
             const userLevel = user.role === 'APPROVER_L1' ? 1 : 2;
             const approval = approvals.find(
@@ -83,8 +83,6 @@ const RequestDetailPage: React.FC = () => {
             setPendingApproval(approval || null);
           }
         } catch (err) {
-          // Approvals might not exist yet for draft requests, ignore error
-          console.log('No approvals found for this request');
         }
 
         // Fetch purchase order if request is approved
@@ -97,7 +95,6 @@ const RequestDetailPage: React.FC = () => {
               setPurchaseOrder(null);
             }
           } catch (err) {
-            console.log('No purchase order found for this request');
             setPurchaseOrder(null);
           }
         }
@@ -256,11 +253,25 @@ const RequestDetailPage: React.FC = () => {
     });
   };
 
+  // Currency formatter
+  const formatCurrency = (amount: number | string) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(numAmount || 0);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-5xl mx-auto text-center py-12">
-          <p className="text-gray-600">Loading request details...</p>
+        <div className="max-w-5xl mx-auto">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+            <div className="h-48 bg-gray-200 rounded"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
         </div>
       </div>
     );
@@ -289,8 +300,8 @@ const RequestDetailPage: React.FC = () => {
           </Button>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{request.title}</h1>
-              <p className="text-gray-600 mt-1">PR-{request.id}</p>
+              <h1 className="text-2xl font-semibold text-gray-900">{request.title}</h1>
+              <p className="text-sm text-gray-500 mt-1">PR-{request.id}</p>
             </div>
             <div className="flex space-x-2">
               {/* Staff actions */}
@@ -312,7 +323,7 @@ const RequestDetailPage: React.FC = () => {
                   </Button>
                   <Button
                     onClick={() => setShowDeleteDialog(true)}
-                    variant="destructive"
+                    variant="outline"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
@@ -325,17 +336,14 @@ const RequestDetailPage: React.FC = () => {
                   <Button
                     onClick={handleApproveClick}
                     disabled={processingApproval}
-                    className="bg-green-600 hover:bg-green-700"
                   >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
                     {processingApproval ? 'Processing...' : 'Approve'}
                   </Button>
                   <Button
                     onClick={handleRejectClick}
                     disabled={processingApproval}
-                    variant="destructive"
+                    variant="outline"
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
                     Reject
                   </Button>
                 </>
@@ -347,45 +355,42 @@ const RequestDetailPage: React.FC = () => {
         {/* Request Info */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Request Information</CardTitle>
+            <CardTitle className="text-lg font-medium">Request Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Status</p>
+                <p className="text-sm text-gray-500 mb-2">Status</p>
                 <StatusBadge status={request.status} />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Amount</p>
-                <div className="flex items-center text-2xl font-bold text-green-600">
-                  <DollarSign className="h-6 w-6" />
-                  {typeof request.total_amount === 'number'
-                    ? request.total_amount.toFixed(2)
-                    : request.total_amount}
-                </div>
+                <p className="text-sm text-gray-500">Total Amount</p>
+                <p className="text-2xl font-semibold text-gray-900 mt-1">
+                  {formatCurrency(request.total_amount)}
+                </p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Requester</p>
-                <p className="text-lg">
+                <p className="text-sm text-gray-500">Requester</p>
+                <p className="text-gray-900">
                   {request.requester.first_name} {request.requester.last_name}
                 </p>
-                <p className="text-sm text-gray-600">{request.requester.email}</p>
+                <p className="text-sm text-gray-500">{request.requester.email}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Created</p>
-                <p className="text-lg">{formatDate(request.created_at)}</p>
+                <p className="text-sm text-gray-500">Created</p>
+                <p className="text-gray-900">{formatDate(request.created_at)}</p>
               </div>
               {request.submitted_at && (
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Submitted</p>
-                  <p className="text-lg">{formatDate(request.submitted_at)}</p>
+                  <p className="text-sm text-gray-500">Submitted</p>
+                  <p className="text-gray-900">{formatDate(request.submitted_at)}</p>
                 </div>
               )}
             </div>
 
             {request.description && (
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Description</p>
+                <p className="text-sm text-gray-500 mb-2">Description</p>
                 <p className="text-gray-900">{request.description}</p>
               </div>
             )}
@@ -394,15 +399,12 @@ const RequestDetailPage: React.FC = () => {
 
         {/* Proforma Document - Show prominently for approvers to verify items */}
         {request.document_file && (
-          <Card className="mb-6 border-2 border-amber-200 bg-amber-50/30">
+          <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileImage className="h-5 w-5 text-amber-600" />
-                  <CardTitle className="text-amber-900">Proforma Document</CardTitle>
-                </div>
+                <CardTitle className="text-lg font-medium">Proforma Document</CardTitle>
                 {isApprover && (
-                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded font-medium">
                     Please verify items match this document
                   </span>
                 )}
@@ -420,7 +422,6 @@ const RequestDetailPage: React.FC = () => {
                 <div className="border rounded-lg overflow-hidden bg-white">
                   {request.document_file.toLowerCase().endsWith('.pdf') ? (
                     <div className="flex flex-col items-center justify-center py-8 bg-gray-50">
-                      <FileText className="h-16 w-16 text-red-500 mb-3" />
                       <p className="text-sm text-gray-600 mb-4">PDF Document</p>
                       <div className="flex space-x-2">
                         <Button
@@ -489,24 +490,19 @@ const RequestDetailPage: React.FC = () => {
 
                 {/* Verification Notice for Approvers */}
                 {isApprover && pendingApproval && (
-                  <div className="bg-amber-100 border border-amber-300 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-900">
-                          Verification Required
-                        </p>
-                        <p className="text-sm text-amber-800 mt-1">
-                          Please compare the items listed below with this proforma document to ensure:
-                        </p>
-                        <ul className="text-sm text-amber-800 mt-2 list-disc list-inside space-y-1">
-                          <li>Item descriptions match the proforma</li>
-                          <li>Quantities are accurate</li>
-                          <li>Unit prices are correct</li>
-                          <li>Total amount matches the proforma invoice</li>
-                        </ul>
-                      </div>
-                    </div>
+                  <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-gray-900">
+                      Verification Required
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Please compare the items listed below with this proforma document to ensure:
+                    </p>
+                    <ul className="text-sm text-gray-600 mt-2 list-disc list-inside space-y-1">
+                      <li>Item descriptions match the proforma</li>
+                      <li>Quantities are accurate</li>
+                      <li>Unit prices are correct</li>
+                      <li>Total amount matches the proforma invoice</li>
+                    </ul>
                   </div>
                 )}
               </div>
@@ -517,7 +513,7 @@ const RequestDetailPage: React.FC = () => {
         {/* Items */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Items ({request.items.length})</CardTitle>
+            <CardTitle className="text-lg font-medium">Items ({request.items.length})</CardTitle>
             <CardDescription>
               List of items in this purchase request
             </CardDescription>
@@ -530,29 +526,26 @@ const RequestDetailPage: React.FC = () => {
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{item.description}</h4>
                       {item.notes && (
-                        <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
+                        <p className="text-sm text-gray-500 mt-1">{item.notes}</p>
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="flex items-center text-xl font-bold text-green-600">
-                        <DollarSign className="h-5 w-5" />
-                        {calculateSubtotal(item).toFixed(2)}
-                      </div>
+                      <p className="text-xl font-semibold text-gray-900">
+                        {formatCurrency(calculateSubtotal(item))}
+                      </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
                     <div>
-                      <p className="text-gray-600">Quantity</p>
-                      <p className="font-medium">
+                      <p className="text-gray-500">Quantity</p>
+                      <p className="font-medium text-gray-900">
                         {item.quantity} {item.unit_of_measure || 'unit'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Unit Price</p>
-                      <p className="font-medium">
-                        ${typeof item.unit_price === 'number'
-                          ? item.unit_price.toFixed(2)
-                          : item.unit_price}
+                      <p className="text-gray-500">Unit Price</p>
+                      <p className="font-medium text-gray-900">
+                        {formatCurrency(item.unit_price)}
                       </p>
                     </div>
                   </div>
@@ -571,46 +564,37 @@ const RequestDetailPage: React.FC = () => {
         {purchaseOrder && request.status === 'APPROVED' && (
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Purchase Order Generated</CardTitle>
+              <CardTitle className="text-lg font-medium">Purchase Order Generated</CardTitle>
               <CardDescription>
                 A purchase order has been automatically generated for this approved request
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <div className="border rounded-lg p-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-blue-600 rounded-full p-3">
-                      <FileText className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">PO Number</p>
-                      <p className="text-2xl font-bold text-blue-900 font-mono">
-                        {purchaseOrder.po_number}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Generated on {new Date(purchaseOrder.generated_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-gray-500">PO Number</p>
+                    <p className="text-2xl font-semibold text-gray-900 font-mono">
+                      {purchaseOrder.po_number}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Generated on {new Date(purchaseOrder.generated_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end space-y-2">
                     {purchaseOrder.pdf_file ? (
                       <>
-                        <div className="flex items-center text-xs text-green-600 mb-1">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          PDF Ready
-                        </div>
+                        <span className="text-xs text-gray-500 mb-1">PDF Ready</span>
                         <div className="flex space-x-2">
                           <Button
                             onClick={() => setShowPOPreview(true)}
                             variant="outline"
-                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             Preview PDF
@@ -618,7 +602,6 @@ const RequestDetailPage: React.FC = () => {
                           <Button
                             onClick={handleDownloadPO}
                             disabled={downloadingPO}
-                            className="bg-blue-600 hover:bg-blue-700"
                           >
                             <Download className="h-4 w-4 mr-2" />
                             {downloadingPO ? 'Downloading...' : 'Download'}
@@ -627,10 +610,7 @@ const RequestDetailPage: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center text-xs text-yellow-600 mb-1">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          PDF Generating...
-                        </div>
+                        <span className="text-xs text-gray-500 mb-1">PDF Generating...</span>
                         <Button
                           disabled
                           variant="outline"
@@ -650,52 +630,14 @@ const RequestDetailPage: React.FC = () => {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      {showDeleteDialog && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
-            onClick={() => !deleting && setShowDeleteDialog(false)}
-          />
-
-          {/* Dialog */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md animate-in zoom-in-95 duration-200">
-              <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                  <CardTitle>Delete Purchase Request</CardTitle>
-                </div>
-                <CardDescription>
-                  This action cannot be undone.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">
-                  Are you sure you want to delete <span className="font-semibold">"{request?.title}"</span>?
-                  This will permanently remove the request and all associated items.
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-end space-x-2">
-                <Button
-                  onClick={() => setShowDeleteDialog(false)}
-                  variant="outline"
-                  disabled={deleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleDeleteConfirm}
-                  variant="destructive"
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-        </>
-      )}
+      <DeleteConfirmationDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        itemName={request?.title || 'this request'}
+        itemType="purchase request"
+        onConfirm={handleDeleteConfirm}
+        loading={deleting}
+      />
 
       {/* Approve Confirmation Dialog */}
       {showApproveDialog && (
@@ -710,10 +652,7 @@ const RequestDetailPage: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-md animate-in zoom-in-95 duration-200">
               <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="h-6 w-6 text-green-600" />
-                  <CardTitle>Approve Purchase Request</CardTitle>
-                </div>
+                <CardTitle className="text-lg font-medium">Approve Purchase Request</CardTitle>
                 <CardDescription>
                   Confirm approval of this purchase request
                 </CardDescription>
@@ -722,14 +661,12 @@ const RequestDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   <p className="text-sm text-gray-700">
                     You are about to approve <span className="font-semibold">"{request?.title}"</span> for{' '}
-                    <span className="font-semibold text-green-600">
-                      ${typeof request?.total_amount === 'number'
-                        ? request.total_amount.toFixed(2)
-                        : request?.total_amount}
+                    <span className="font-semibold">
+                      {formatCurrency(request?.total_amount || 0)}
                     </span>.
                   </p>
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                    <p className="text-xs text-blue-800">
+                  <div className="bg-gray-100 border border-gray-200 rounded-md p-3">
+                    <p className="text-xs text-gray-700">
                       {user?.role === 'APPROVER_L1'
                         ? 'This will move the request to Level 2 approval.'
                         : 'This will mark the request as fully approved and ready for processing.'}
@@ -750,7 +687,6 @@ const RequestDetailPage: React.FC = () => {
                 </Button>
                 <Button
                   onClick={handleApproveConfirm}
-                  className="bg-green-600 hover:bg-green-700"
                   disabled={processingApproval}
                 >
                   {processingApproval ? 'Approving...' : 'Approve Request'}
@@ -774,10 +710,7 @@ const RequestDetailPage: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-md animate-in zoom-in-95 duration-200">
               <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <XCircle className="h-6 w-6 text-red-600" />
-                  <CardTitle>Reject Purchase Request</CardTitle>
-                </div>
+                <CardTitle className="text-lg font-medium">Reject Purchase Request</CardTitle>
                 <CardDescription>
                   Please provide a reason for rejection
                 </CardDescription>
@@ -814,7 +747,6 @@ const RequestDetailPage: React.FC = () => {
                 </Button>
                 <Button
                   onClick={handleRejectConfirm}
-                  variant="destructive"
                   disabled={processingApproval || !rejectComments.trim()}
                 >
                   {processingApproval ? 'Rejecting...' : 'Reject Request'}

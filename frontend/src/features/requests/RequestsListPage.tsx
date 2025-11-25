@@ -20,8 +20,10 @@ import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import { SearchBar } from '@/components/common/SearchBar';
 import { FilterPanel } from '@/components/common/FilterPanel';
 import { Pagination } from '@/components/common/Pagination';
+import { TableSkeleton } from '@/components/common/LoadingSkeletons';
+import { NoRequestsEmptyState, NoResultsEmptyState } from '@/components/common/EmptyState';
 import type { PurchaseRequestListItem } from '@/types';
-import { Plus, Filter, FileText, Clock, CheckCircle2, XCircle, DollarSign, Eye, ArrowUpDown } from 'lucide-react';
+import { Plus, Filter, Eye } from 'lucide-react';
 
 const RequestsListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -104,49 +106,20 @@ const RequestsListPage: React.FC = () => {
   }, [debouncedSearch, filters.status, filters.created_after, filters.created_before,
       filters.amount_min, filters.amount_max, filters.vendor, ordering, currentPage, pageSize]);
 
-  // Get status badge color
+  // Get status badge with subtle colors
   const getStatusBadge = (status: string) => {
-    const badges: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-      DRAFT: {
-        bg: 'bg-gray-100',
-        text: 'text-gray-800',
-        icon: <FileText className="h-3 w-3" />,
-      },
-      PENDING: {
-        bg: 'bg-yellow-100',
-        text: 'text-yellow-800',
-        icon: <Clock className="h-3 w-3" />,
-      },
-      APPROVED_L1: {
-        bg: 'bg-blue-100',
-        text: 'text-blue-800',
-        icon: <CheckCircle2 className="h-3 w-3" />,
-      },
-      APPROVED_L2: {
-        bg: 'bg-indigo-100',
-        text: 'text-indigo-800',
-        icon: <CheckCircle2 className="h-3 w-3" />,
-      },
-      APPROVED: {
-        bg: 'bg-green-100',
-        text: 'text-green-800',
-        icon: <CheckCircle2 className="h-3 w-3" />,
-      },
-      REJECTED: {
-        bg: 'bg-red-100',
-        text: 'text-red-800',
-        icon: <XCircle className="h-3 w-3" />,
-      },
+    const styles: Record<string, string> = {
+      DRAFT: 'bg-gray-100 text-gray-600',
+      PENDING: 'bg-amber-50 text-amber-700',
+      APPROVED_L1: 'bg-blue-50 text-blue-700',
+      APPROVED_L2: 'bg-blue-50 text-blue-700',
+      APPROVED: 'bg-emerald-50 text-emerald-700',
+      REJECTED: 'bg-red-50 text-red-700',
     };
 
-    const badge = badges[status] || badges.DRAFT;
-
     return (
-      <span
-        className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}
-      >
-        {badge.icon}
-        <span>{status.replace(/_/g, ' ')}</span>
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || styles.DRAFT}`}>
+        {status.replace(/_/g, ' ')}
       </span>
     );
   };
@@ -167,10 +140,10 @@ const RequestsListPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900">
               {user?.role === 'FINANCE' ? 'Purchase Requests' : 'My Purchase Requests'}
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               {user?.role === 'FINANCE'
                 ? 'View all purchase requests (read-only)'
                 : 'View and manage your purchase requests'}
@@ -204,36 +177,16 @@ const RequestsListPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <span className="text-sm text-gray-500">Sort by:</span>
             <Select value={ordering} onValueChange={(value) => setFilter('ordering', value)}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="-created_at">
-                  <div className="flex items-center">
-                    <ArrowUpDown className="h-3 w-3 mr-2" />
-                    Newest First
-                  </div>
-                </SelectItem>
-                <SelectItem value="created_at">
-                  <div className="flex items-center">
-                    <ArrowUpDown className="h-3 w-3 mr-2" />
-                    Oldest First
-                  </div>
-                </SelectItem>
-                <SelectItem value="-total_amount">
-                  <div className="flex items-center">
-                    <ArrowUpDown className="h-3 w-3 mr-2" />
-                    Amount: High to Low
-                  </div>
-                </SelectItem>
-                <SelectItem value="total_amount">
-                  <div className="flex items-center">
-                    <ArrowUpDown className="h-3 w-3 mr-2" />
-                    Amount: Low to High
-                  </div>
-                </SelectItem>
+                <SelectItem value="-created_at">Newest First</SelectItem>
+                <SelectItem value="created_at">Oldest First</SelectItem>
+                <SelectItem value="-total_amount">Amount: High to Low</SelectItem>
+                <SelectItem value="total_amount">Amount: Low to High</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -306,41 +259,37 @@ const RequestsListPage: React.FC = () => {
 
         {/* Loading */}
         {loading && (
-          <div className="text-center py-12">
-            <p className="text-gray-600">Loading requests...</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">Requests</CardTitle>
+              <CardDescription>
+                {user?.role === 'FINANCE'
+                  ? 'A list of all purchase requests in the system'
+                  : 'A list of all your purchase requests'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TableSkeleton rows={5} columns={8} />
+            </CardContent>
+          </Card>
         )}
 
         {/* Empty State */}
         {!loading && requests.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No requests found
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {searchTerm
-                  ? 'Try adjusting your search criteria'
-                  : user?.role === 'FINANCE'
-                  ? 'No purchase requests found'
-                  : 'Get started by creating your first purchase request'}
-              </p>
-              {!searchTerm && user?.role !== 'FINANCE' && (
-                <Button onClick={() => navigate(`${getBasePath()}/requests/create`)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Request
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          searchTerm ? (
+            <NoResultsEmptyState searchTerm={searchTerm} />
+          ) : (
+            <NoRequestsEmptyState
+              onCreateNew={user?.role !== 'FINANCE' ? () => navigate(`${getBasePath()}/requests/create`) : undefined}
+            />
+          )
         )}
 
         {/* Requests Table */}
         {!loading && requests.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Requests</CardTitle>
+              <CardTitle className="text-lg font-medium">Requests</CardTitle>
               <CardDescription>
                 {user?.role === 'FINANCE'
                   ? 'A list of all purchase requests in the system'
@@ -368,39 +317,35 @@ const RequestsListPage: React.FC = () => {
                         PR-{request.id}
                       </TableCell>
                       <TableCell className="max-w-xs">
-                        <div className="font-medium text-gray-900">{request.title}</div>
+                        <div className="text-gray-900">{request.title}</div>
                         {request.description && (
-                          <div className="text-sm text-gray-600 truncate">
+                          <div className="text-sm text-gray-500 truncate">
                             {request.description}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">
-                          {request.item_count} item{request.item_count !== 1 ? 's' : ''}
-                        </span>
+                      <TableCell className="text-gray-600">
+                        {request.item_count} item{request.item_count !== 1 ? 's' : ''}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end font-semibold text-green-600">
-                          <DollarSign className="h-4 w-4" />
-                          {typeof request.total_amount === 'number'
-                            ? request.total_amount.toFixed(2)
-                            : request.total_amount}
-                        </div>
+                      <TableCell className="text-right font-medium">
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                        }).format(typeof request.total_amount === 'number'
+                          ? request.total_amount
+                          : parseFloat(request.total_amount as string) || 0)}
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">
-                          {formatDate(request.created_at)}
-                        </span>
+                      <TableCell className="text-gray-500">
+                        {formatDate(request.created_at)}
                       </TableCell>
                       <TableCell>
                         {request.submitted_at ? (
-                          <span className="text-sm text-gray-600">
+                          <span className="text-gray-500">
                             {formatDate(request.submitted_at)}
                           </span>
                         ) : (
-                          <span className="text-sm text-gray-400">-</span>
+                          <span className="text-gray-400">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

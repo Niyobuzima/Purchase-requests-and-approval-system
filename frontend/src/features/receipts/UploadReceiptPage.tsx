@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { purchaseOrdersAPI, type PurchaseOrderDetail } from '@/api/purchaseOrders';
 import { receiptsAPI } from '@/api/receipts';
-import { Upload, FileText, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, ArrowLeft } from 'lucide-react';
 
 export const UploadReceiptPage: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
@@ -27,6 +26,14 @@ export const UploadReceiptPage: React.FC = () => {
       return '/finance';
     }
     return '/staff';
+  };
+
+  const formatCurrency = (amount: number | string) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(numAmount || 0);
   };
 
   useEffect(() => {
@@ -144,8 +151,15 @@ export const UploadReceiptPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-48 bg-gray-200 rounded"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -155,156 +169,154 @@ export const UploadReceiptPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Upload Receipt</h1>
-        <p className="text-gray-600 mt-2">
-          Upload the receipt for verification against the purchase order
-        </p>
-      </div>
-
-      {/* Purchase Order Summary */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Purchase Order Details</CardTitle>
-          <CardDescription>Review the PO before uploading the receipt</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-gray-600">PO Number</Label>
-              <p className="font-medium">{purchaseOrder.po_number}</p>
-            </div>
-            <div>
-              <Label className="text-gray-600">Vendor</Label>
-              <p className="font-medium">{purchaseOrder.request_details.vendor_name || 'N/A'}</p>
-            </div>
-            <div>
-              <Label className="text-gray-600">Total Amount</Label>
-              <p className="font-medium">${Number(purchaseOrder.request_details.total_amount).toFixed(2)}</p>
-            </div>
-            <div>
-              <Label className="text-gray-600">Items</Label>
-              <p className="font-medium">{purchaseOrder.request_details.items.length} items</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* File Upload Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Receipt File</CardTitle>
-          <CardDescription>
-            Upload the receipt as PDF or image (JPEG, PNG). Maximum file size: 10MB
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center ${
-              dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}`)}
+            className="mb-4"
           >
-            {selectedFile ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
-                  <CheckCircle2 className="h-12 w-12 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedFile(null)}
-                >
-                  Change File
-                </Button>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Purchase Order
+          </Button>
+          <h1 className="text-2xl font-semibold text-gray-900">Upload Receipt</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Upload the receipt for verification against the purchase order
+          </p>
+        </div>
+
+        {/* Purchase Order Summary */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Purchase Order Details</CardTitle>
+            <CardDescription>Review the PO before uploading the receipt</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">PO Number</p>
+                <p className="font-medium text-gray-900">{purchaseOrder.po_number}</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
-                  <Upload className="h-12 w-12 text-gray-400" />
-                </div>
-                <div>
-                  <p className="text-gray-700 font-medium">
-                    Drag and drop your receipt file here
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">or</p>
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    id="receipt-file"
-                    className="hidden"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleFileInput}
-                  />
+              <div>
+                <p className="text-sm text-gray-500">Vendor</p>
+                <p className="font-medium text-gray-900">{purchaseOrder.request_details.vendor_name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total Amount</p>
+                <p className="text-xl font-semibold text-gray-900">
+                  {formatCurrency(purchaseOrder.request_details.total_amount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Items</p>
+                <p className="font-medium text-gray-900">{purchaseOrder.request_details.items.length} items</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* File Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Receipt File</CardTitle>
+            <CardDescription>
+              Upload the receipt as PDF or image (JPEG, PNG). Maximum file size: 10MB
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive ? 'border-gray-900 bg-gray-50' : 'border-gray-300'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              {selectedFile ? (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-50">
+                    <span className="text-emerald-700 text-xl">✓</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{selectedFile.name}</p>
+                    <p className="text-sm text-gray-500">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
                   <Button
                     variant="outline"
-                    onClick={() => document.getElementById('receipt-file')?.click()}
+                    onClick={() => setSelectedFile(null)}
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Browse Files
+                    Change File
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Supported formats: PDF, JPEG, PNG (Max: 10MB)
+              ) : (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-gray-100">
+                    <Upload className="h-6 w-6 text-gray-500" />
+                  </div>
+                  <div>
+                    <p className="text-gray-900 font-medium">
+                      Drag and drop your receipt file here
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">or</p>
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      id="receipt-file"
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleFileInput}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => document.getElementById('receipt-file')?.click()}
+                    >
+                      Browse Files
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Supported formats: PDF, JPEG, PNG (Max: 10MB)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {selectedFile && (
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+                <p className="text-sm font-medium text-gray-900">AI Processing</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  After upload, our AI will automatically extract data from the receipt and validate it against the purchase order.
+                  You can review the validation results on the PO details page.
                 </p>
               </div>
             )}
-          </div>
 
-          {selectedFile && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-900">
-                  <p className="font-medium">AI Processing</p>
-                  <p className="mt-1">
-                    After upload, our AI will automatically extract data from the receipt and validate it against the purchase order.
-                    You can review the validation results on the PO details page.
-                  </p>
-                </div>
-              </div>
+            {/* Action Buttons */}
+            <div className="flex space-x-3 mt-6">
+              <Button
+                onClick={handleUpload}
+                disabled={!selectedFile || uploading}
+                className="flex-1"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading ? 'Uploading...' : 'Upload Receipt'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}`)}
+                disabled={uploading}
+              >
+                Cancel
+              </Button>
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex space-x-3 mt-6">
-            <Button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploading}
-              className="flex-1"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Receipt
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate(`${getBasePath()}/purchase-orders`)}
-              disabled={uploading}
-            >
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
