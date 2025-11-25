@@ -180,3 +180,52 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = self.get_serializer(approvals, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get approval statistics for the current approver"""
+        user = request.user
+        level = Approval.Level.LEVEL_1 if user.role == 'APPROVER_L1' else Approval.Level.LEVEL_2
+
+        # Pending approvals for this level
+        pending_count = Approval.objects.filter(
+            level=level,
+            status=Approval.Status.PENDING
+        ).count()
+
+        # Total pending amount
+        pending_approvals = Approval.objects.filter(
+            level=level,
+            status=Approval.Status.PENDING
+        ).select_related('request')
+        pending_amount = sum(
+            float(a.request.total_amount) for a in pending_approvals
+        )
+
+        # Approvals processed by this user
+        my_approved = Approval.objects.filter(
+            approver=user,
+            status=Approval.Status.APPROVED
+        ).count()
+
+        my_rejected = Approval.objects.filter(
+            approver=user,
+            status=Approval.Status.REJECTED
+        ).count()
+
+        # Today's processed
+        today = timezone.now().date()
+        today_processed = Approval.objects.filter(
+            approver=user,
+            processed_at__date=today
+        ).count()
+
+        return Response({
+            'pending_count': pending_count,
+            'pending_amount': pending_amount,
+            'my_approved': my_approved,
+            'my_rejected': my_rejected,
+            'today_processed': today_processed,
+            'level': level,
+            'level_display': 'Level 1' if level == 1 else 'Level 2',
+        })
