@@ -19,15 +19,7 @@ const CreateRequestPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [description, setDescription] = useState('');
-  const [items, setItems] = useState<Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>[]>([
-    {
-      description: '',
-      quantity: 1,
-      unit_price: 0,
-      unit_of_measure: 'unit',
-      notes: '',
-    },
-  ]);
+  const [items, setItems] = useState<Omit<RequestItem, 'id' | 'subtotal' | 'created_at' | 'updated_at'>[]>([]);
   const [loading, setLoading] = useState(false);
 
   const formatCurrency = (amount: number) => {
@@ -53,14 +45,6 @@ const CreateRequestPage: React.FC = () => {
 
   // Remove item row
   const handleRemoveItem = (index: number) => {
-    if (items.length === 1) {
-      toast({
-        title: 'Cannot remove',
-        description: 'At least one item is required',
-        variant: 'destructive',
-      });
-      return;
-    }
     setItems(items.filter((_, i) => i !== index));
   };
 

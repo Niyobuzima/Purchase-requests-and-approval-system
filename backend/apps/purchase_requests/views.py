@@ -322,7 +322,11 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         file_content = document_file.read()
         file_name = document_file.name
 
-        temp_fd, temp_path = tempfile.mkstemp(suffix=os.path.splitext(file_name)[1])
+        # Use unique prefix to avoid cleanup conflicts with other temp files
+        temp_fd, temp_path = tempfile.mkstemp(
+            prefix='pr_upload_',
+            suffix=os.path.splitext(file_name)[1]
+        )
         try:
             with os.fdopen(temp_fd, 'wb') as temp_file:
                 temp_file.write(file_content)

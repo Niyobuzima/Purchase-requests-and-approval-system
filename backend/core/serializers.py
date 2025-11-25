@@ -283,10 +283,40 @@ def update_nested_items(
     
     # Get existing items
     related_name = related_name or f'{parent_field_name}s'
-    existing_items = {
-        getattr(item, item_id_field): item
-        for item in getattr(parent_instance, related_name).all()
-    }
+    
+    # Validate that the related_name attribute exists
+    if not hasattr(parent_instance, related_name):
+        parent_class = parent_instance.__class__.__name__
+        default_hint = f"{item_model.__name__.lower()}_set"
+        raise AttributeError(
+            f"'{parent_class}' object has no attribute '{related_name}'. "
+            f"The related_name is invalid. "
+            f"Expected default would be '{default_hint}' if no related_name is set on the ForeignKey. "
+            f"Check the ForeignKey definition on {item_model.__name__} or provide correct related_name parameter."
+        )
+    
+    # Validate that the attribute is a related manager
+    try:
+        related_manager = getattr(parent_instance, related_name)
+        existing_items = {
+            getattr(item, item_id_field): item
+            for item in related_manager.all()
+        }
+    except AttributeError as e:
+        parent_class = parent_instance.__class__.__name__
+        raise AttributeError(
+            f"Attribute '{related_name}' on '{parent_class}' is not a related manager or is not accessible. "
+            f"Ensure '{related_name}' is a reverse ForeignKey relation. "
+            f"Original error: {str(e)}"
+        ) from e
+    except TypeError as e:
+        parent_class = parent_instance.__class__.__name__
+        attr_type = type(getattr(parent_instance, related_name)).__name__
+        raise TypeError(
+            f"Attribute '{related_name}' on '{parent_class}' (type: {attr_type}) does not support .all() method. "
+            f"Expected a Django related manager, but got {attr_type}. "
+            f"Original error: {str(e)}"
+        ) from e
 
         updated_items = []
         seen_ids = set()

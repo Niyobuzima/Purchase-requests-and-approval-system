@@ -185,6 +185,26 @@ def validate_document_response(data: Dict) -> Dict:
             'user_message': 'Please upload a valid proforma invoice, receipt, or quotation. The uploaded document does not appear to be a supported document type.'
         }
 
+    # Validate document_type against VALID_DOCUMENT_TYPES
+    document_type = data.get('document_type', '').strip()
+    if document_type:
+        # Normalize both the returned type and valid types to lowercase for comparison
+        document_type_lower = document_type.lower()
+        valid_types_lower = [dt.lower() for dt in VALID_DOCUMENT_TYPES]
+
+        if document_type_lower not in valid_types_lower:
+            error_message = f"Invalid document type: '{document_type}'. Supported types are: {', '.join(VALID_DOCUMENT_TYPES)}."
+            app_logger.warning(f"Document type validation failed: {error_message}")
+
+            return {
+                'success': False,
+                'is_valid': False,
+                'is_valid_document': False,
+                'document_type': document_type,
+                'error': error_message,
+                'user_message': 'Please upload a valid proforma invoice, receipt, or quotation. The uploaded document type is not supported.'
+            }
+
     return {
         'is_valid': True,
         'data': data

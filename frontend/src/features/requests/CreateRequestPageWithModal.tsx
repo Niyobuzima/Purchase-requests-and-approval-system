@@ -152,7 +152,8 @@ const CreateRequestPage: React.FC = () => {
         return;
       }
 
-      if (response.document_processed && response.extracted_data.success) {
+      // Guard against null/undefined extracted_data
+      if (response.document_processed && response.extracted_data && response.extracted_data.success) {
         // Auto-fill form
         if (response.extracted_data.vendor_name) {
           setTitle(response.extracted_data.vendor_name);
@@ -180,7 +181,7 @@ const CreateRequestPage: React.FC = () => {
       } else {
         toast({
           title: 'Extraction issue',
-          description: response.extracted_data.error || 'Could not extract all data. Please fill in missing details.',
+          description: response.extracted_data?.error ?? 'Could not extract all data. Please fill in missing details.',
           variant: 'destructive',
         });
       }
