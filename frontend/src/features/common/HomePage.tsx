@@ -22,6 +22,7 @@ const HomePage: React.FC = () => {
       APPROVER_L1: '/approver/dashboard',
       APPROVER_L2: '/approver/dashboard',
       FINANCE: '/finance/dashboard',
+      ADMIN: '/admin/dashboard',
     };
 
     return roleRoutes[user.role] || '/';
@@ -35,6 +36,7 @@ const HomePage: React.FC = () => {
       APPROVER_L1: 'Approver Level 1',
       APPROVER_L2: 'Approver Level 2',
       FINANCE: 'Finance',
+      ADMIN: 'Administrator',
     };
 
     return roleNames[user.role] || user.role;
@@ -169,6 +171,21 @@ const HomePage: React.FC = () => {
                 <p className="text-gray-600">
                   As a finance team member, you can access the finance dashboard, validate
                   receipts, review spending analytics, and export reports.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {user?.role === 'ADMIN' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Administrator Features</CardTitle>
+                <CardDescription>Available actions for administrators</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  As an administrator, you can manage all users in the system, change user roles,
+                  activate or deactivate accounts, and view system-wide statistics.
                 </p>
               </CardContent>
             </Card>

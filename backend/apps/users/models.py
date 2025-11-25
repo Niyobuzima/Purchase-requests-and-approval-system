@@ -10,6 +10,7 @@ class User(AbstractUser):
         APPROVER_L1 = 'APPROVER_L1', 'Approver Level 1'
         APPROVER_L2 = 'APPROVER_L2', 'Approver Level 2'
         FINANCE = 'FINANCE', 'Finance'
+        ADMIN = 'ADMIN', 'Administrator'
 
     email = models.EmailField(unique=True)
     role = models.CharField(
@@ -50,3 +51,7 @@ class User(AbstractUser):
     @property
     def is_finance_user(self):
         return self.role == self.Role.FINANCE
+
+    @property
+    def is_admin(self):
+        return self.role == self.Role.ADMIN

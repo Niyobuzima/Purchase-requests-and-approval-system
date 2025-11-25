@@ -1,5 +1,5 @@
 // User Types
-export type UserRole = 'STAFF' | 'APPROVER_L1' | 'APPROVER_L2' | 'FINANCE';
+export type UserRole = 'STAFF' | 'APPROVER_L1' | 'APPROVER_L2' | 'FINANCE' | 'ADMIN';
 
 export interface User {
   id: number;
@@ -11,6 +11,54 @@ export interface User {
   role_display: string;
   date_joined?: string;
   is_verified?: boolean;
+}
+
+// Admin Types
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  role: UserRole;
+  role_display: string;
+  phone?: string;
+  department?: string;
+  is_active: boolean;
+  date_joined: string;
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminDashboardStats {
+  total_users: number;
+  active_users: number;
+  inactive_users: number;
+  users_by_role: Record<string, number>;
+  recent_users: AdminUser[];
+}
+
+export interface AdminUserUpdate {
+  role?: UserRole;
+  is_active?: boolean;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  department?: string;
+}
+
+export interface AdminCreateUser {
+  username: string;
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: UserRole;
+  phone?: string;
+  department?: string;
+  is_active?: boolean;
 }
 
 export interface AuthTokens {

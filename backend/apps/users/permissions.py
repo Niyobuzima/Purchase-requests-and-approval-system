@@ -55,3 +55,14 @@ class IsApprover(permissions.BasePermission):
             request.user.is_authenticated and
             request.user.role in [User.Role.APPROVER_L1, User.Role.APPROVER_L2]
         )
+
+
+class IsAdmin(permissions.BasePermission):
+    """Permission for admin users"""
+
+    def has_permission(self, request, view):
+        return (
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == User.Role.ADMIN
+        )
