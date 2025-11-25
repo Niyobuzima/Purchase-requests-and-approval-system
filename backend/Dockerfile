@@ -22,7 +22,7 @@ ENV UV_HTTP_TIMEOUT=120
 RUN uv venv /app/.venv && \
     . /app/.venv/bin/activate && \
     uv pip install --no-cache \
-        Setuptools<81 \
+        Setuptools<80 \
         django==4.2.16 \
         djangorestframework==3.14.0 \
         djangorestframework-simplejwt==5.3.0 \
