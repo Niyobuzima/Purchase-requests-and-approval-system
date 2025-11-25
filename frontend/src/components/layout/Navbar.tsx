@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,18 +15,16 @@ import {
   LogOut,
   ChevronDown,
   FileText,
-  LayoutDashboard,
-  ShoppingCart,
-  Receipt,
-  Download,
-  Users,
-  Shield,
+  Menu,
+  X,
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -34,21 +32,9 @@ const Navbar: React.FC = () => {
   };
 
   const getRoleBadge = (role: string) => {
-    const badges: Record<string, { bg: string; text: string }> = {
-      STAFF: { bg: 'bg-blue-100', text: 'text-blue-800' },
-      APPROVER_L1: { bg: 'bg-purple-100', text: 'text-purple-800' },
-      APPROVER_L2: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
-      FINANCE: { bg: 'bg-green-100', text: 'text-green-800' },
-      ADMIN: { bg: 'bg-red-100', text: 'text-red-800' },
-    };
-
-    const badge = badges[role] || badges.STAFF;
     const displayRole = role.replace(/_/g, ' ');
-
     return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badge.bg} ${badge.text}`}
-      >
+      <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
         {displayRole}
       </span>
     );
@@ -72,7 +58,52 @@ const Navbar: React.FC = () => {
     }
   };
 
+  // Check if a nav link is active
+  const isActive = (path: string) => location.pathname.startsWith(path);
+
+  // Get navigation items based on role
+  const getNavItems = () => {
+    const items = [
+      {
+        path: getDashboardPath(),
+        label: 'Dashboard',
+        roles: ['STAFF', 'APPROVER_L1', 'APPROVER_L2', 'FINANCE', 'ADMIN'],
+      },
+    ];
+
+    if (user?.role === 'STAFF') {
+      items.push(
+        { path: '/staff/requests', label: 'My Requests', roles: ['STAFF'] },
+        { path: '/staff/purchase-orders', label: 'Purchase Orders', roles: ['STAFF'] }
+      );
+    }
+
+    if (user?.role === 'FINANCE') {
+      items.push(
+        { path: '/finance/requests', label: 'Requests', roles: ['FINANCE'] },
+        { path: '/finance/purchase-orders', label: 'Purchase Orders', roles: ['FINANCE'] },
+        { path: '/finance/receipts', label: 'Receipts', roles: ['FINANCE'] },
+        { path: '/finance/export-history', label: 'Export History', roles: ['FINANCE'] }
+      );
+    }
+
+    if (user?.role === 'ADMIN') {
+      items.push(
+        { path: '/admin/users', label: 'User Management', roles: ['ADMIN'] }
+      );
+    }
+
+    return items;
+  };
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    setShowMobileMenu(false);
+  };
+
   if (!user) return null;
+
+  const navItems = getNavItems();
 
   return (
     <>
@@ -81,94 +112,44 @@ const Navbar: React.FC = () => {
           <div className="flex justify-between h-16">
             {/* Left side - Logo and nav */}
             <div className="flex items-center">
+              {/* Mobile menu button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden mr-2"
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+              >
+                {showMobileMenu ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </Button>
+
               <div className="flex-shrink-0 flex items-center">
-                <FileText className="h-8 w-8 text-blue-600" />
-                <span className="ml-2 text-xl font-bold text-gray-900">
+                <FileText className="h-8 w-8 text-gray-900" />
+                <span className="ml-2 text-xl font-semibold text-gray-900 hidden sm:block">
                   ProcureFlow
                 </span>
               </div>
 
-              {/* Navigation links */}
-              <div className="hidden md:ml-6 md:flex md:space-x-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate(getDashboardPath())}
-                  className="text-gray-700 hover:text-gray-900"
-                >
-                  <LayoutDashboard className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Button>
-
-                {user.role === 'STAFF' && (
-                  <>
+              {/* Desktop Navigation links */}
+              <div className="hidden md:ml-6 md:flex md:space-x-1">
+                {navItems.map((item) => {
+                  const active = isActive(item.path);
+                  return (
                     <Button
+                      key={item.path}
                       variant="ghost"
-                      onClick={() => navigate('/staff/requests')}
-                      className="text-gray-700 hover:text-gray-900"
+                      onClick={() => navigate(item.path)}
+                      className={`text-gray-700 hover:text-gray-900 ${
+                        active ? 'bg-gray-100 text-gray-900' : ''
+                      }`}
                     >
-                      <FileText className="h-4 w-4 mr-2" />
-                      My Requests
+                      {item.label}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/staff/purchase-orders')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Purchase Orders
-                    </Button>
-                  </>
-                )}
-
-                {user.role === 'FINANCE' && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/finance/requests')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Requests
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/finance/purchase-orders')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Purchase Orders
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/finance/receipts')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <Receipt className="h-4 w-4 mr-2" />
-                      Receipts
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/finance/export-history')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export History
-                    </Button>
-                  </>
-                )}
-
-                {user.role === 'ADMIN' && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/admin/users')}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      User Management
-                    </Button>
-                  </>
-                )}
+                  );
+                })}
               </div>
             </div>
 
@@ -190,7 +171,7 @@ const Navbar: React.FC = () => {
                       </p>
                       <p className="text-xs text-gray-600">{user.email}</p>
                     </div>
-                    <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                    <div className="h-9 w-9 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold">
                       {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
                     </div>
                     <ChevronDown className="h-4 w-4 text-gray-600" />
@@ -211,7 +192,7 @@ const Navbar: React.FC = () => {
                       <Card className="shadow-lg">
                         <CardHeader className="pb-3">
                           <div className="flex items-center space-x-3">
-                            <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                            <div className="h-12 w-12 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold text-lg">
                               {user.first_name?.charAt(0) || ''}{user.last_name?.charAt(0) || ''}
                             </div>
                             <div className="flex-1">
@@ -244,7 +225,7 @@ const Navbar: React.FC = () => {
 
                           <Button
                             variant="ghost"
-                            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="w-full justify-start"
                             onClick={handleLogout}
                           >
                             <LogOut className="h-4 w-4 mr-2" />
@@ -259,6 +240,52 @@ const Navbar: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {showMobileMenu && (
+          <div className="md:hidden border-t border-gray-200 bg-white">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              {navItems.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`w-full flex items-center px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                      active
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+
+              <div className="border-t border-gray-200 my-2"></div>
+
+              <button
+                onClick={() => {
+                  navigate('/profile');
+                  setShowMobileMenu(false);
+                }}
+                className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              >
+                Profile
+              </button>
+
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setShowMobileMenu(false);
+                }}
+                className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
     </>
   );

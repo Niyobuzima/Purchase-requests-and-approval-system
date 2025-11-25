@@ -2,27 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { purchaseOrdersAPI, type PurchaseOrderDetail } from '@/api/purchaseOrders';
 import { receiptsAPI } from '@/api/receipts';
 import type { Receipt } from '@/types';
-import {
-  ArrowLeft,
-  Download,
-  Upload,
-  FileText,
-  Loader2,
-  Package,
-  DollarSign,
-  Calendar,
-  User,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
-} from 'lucide-react';
+import { ArrowLeft, Download, Upload, Eye } from 'lucide-react';
 
 export const PurchaseOrderDetailPage: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
@@ -112,414 +97,396 @@ export const PurchaseOrderDetailPage: React.FC = () => {
     }
   };
 
+  const formatCurrency = (amount: number | string) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(numAmount || 0);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   const getValidationStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Pending
-          </Badge>
-        );
-      case 'MATCHED':
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Matched
-          </Badge>
-        );
-      case 'DISCREPANCY':
-        return (
-          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Discrepancy
-          </Badge>
-        );
-      case 'APPROVED':
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Approved
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const styles: Record<string, string> = {
+      PENDING: 'bg-amber-50 text-amber-700',
+      MATCHED: 'bg-emerald-50 text-emerald-700',
+      DISCREPANCY: 'bg-red-50 text-red-700',
+      APPROVED: 'bg-blue-50 text-blue-700',
+    };
+
+    const labels: Record<string, string> = {
+      PENDING: 'Pending',
+      MATCHED: 'Matched',
+      DISCREPANCY: 'Discrepancy',
+      APPROVED: 'Approved',
+    };
+
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+        {labels[status] || status}
+      </span>
+    );
+  };
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      DRAFT: 'bg-gray-100 text-gray-600',
+      PENDING: 'bg-amber-50 text-amber-700',
+      APPROVED_L1: 'bg-blue-50 text-blue-700',
+      APPROVED_L2: 'bg-blue-50 text-blue-700',
+      APPROVED: 'bg-emerald-50 text-emerald-700',
+      REJECTED: 'bg-red-50 text-red-700',
+    };
+
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+        {status.replace(/_/g, ' ')}
+      </span>
+    );
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="h-48 bg-gray-200 rounded"></div>
+                <div className="h-64 bg-gray-200 rounded"></div>
+              </div>
+              <div className="h-64 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!purchaseOrder) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Card>
-          <CardContent className="p-12 text-center">
-            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Purchase Order Not Found</h2>
-            <p className="text-gray-600 mb-6">
-              The purchase order you're looking for doesn't exist or you don't have permission to view it.
-            </p>
-            <Button onClick={() => navigate(`${getBasePath()}/purchase-orders`)}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Purchase Orders
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Purchase Order Not Found</h2>
+              <p className="text-gray-500 mb-6">
+                The purchase order you're looking for doesn't exist or you don't have permission to view it.
+              </p>
+              <Button onClick={() => navigate(`${getBasePath()}/purchase-orders`)} variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Purchase Orders
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Header */}
-      <div className="mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(`${getBasePath()}/purchase-orders`)}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Purchase Orders
-        </Button>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(`${getBasePath()}/purchase-orders`)}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Purchase Orders
+          </Button>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{purchaseOrder.po_number}</h1>
-            <p className="text-gray-600 mt-1">{purchaseOrder.request_details.title}</p>
-          </div>
-          <div className="flex space-x-3">
-            <Button
-              onClick={handleDownloadPDF}
-              disabled={downloading || !purchaseOrder.pdf_file}
-              variant="outline"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Receipt
-            </Button>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">{purchaseOrder.po_number}</h1>
+              <p className="text-sm text-gray-500 mt-1">{purchaseOrder.request_details.title}</p>
+            </div>
+            <div className="flex space-x-3">
+              <Button
+                onClick={handleDownloadPDF}
+                disabled={downloading || !purchaseOrder.pdf_file}
+                variant="outline"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {downloading ? 'Downloading...' : 'Download PDF'}
+              </Button>
+              <Button
+                onClick={() => navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Receipt
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content - Left Column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Purchase Request Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Purchase Request Details</CardTitle>
-              <CardDescription>Original request information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-600">Requester</Label>
-                  <p className="font-medium">{purchaseOrder.requester_name}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Vendor</Label>
-                  <p className="font-medium">
-                    {purchaseOrder.request_details.vendor_name || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Total Amount</Label>
-                  <p className="font-medium text-lg">
-                    ${Number(purchaseOrder.request_details.total_amount).toFixed(2)}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Status</Label>
-                  <Badge className="bg-green-100 text-green-800">
-                    {purchaseOrder.request_details.status}
-                  </Badge>
-                </div>
-              </div>
-
-              {purchaseOrder.request_details.description && (
-                <div>
-                  <Label className="text-gray-600">Description</Label>
-                  <p className="text-gray-900 mt-1">
-                    {purchaseOrder.request_details.description}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Items</CardTitle>
-              <CardDescription>
-                {purchaseOrder.request_details.items.length} item(s) in this order
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {purchaseOrder.request_details.items.map((item, index) => (
-                  <div
-                    key={item.id || index}
-                    className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-start space-x-3">
-                        <Package className="h-5 w-5 text-gray-400 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-gray-900">{item.description}</p>
-                          {item.notes && (
-                            <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
-                          )}
-                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                            <span>Qty: {item.quantity}</span>
-                            <span>•</span>
-                            <span>Unit Price: ${Number(item.unit_price).toFixed(2)}</span>
-                            {item.unit_of_measure && (
-                              <>
-                                <span>•</span>
-                                <span>{item.unit_of_measure}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right ml-4">
-                      <p className="font-semibold text-gray-900">
-                        ${(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}
-                      </p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content - Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Purchase Request Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">Purchase Request Details</CardTitle>
+                <CardDescription>Original request information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Requester</p>
+                    <p className="font-medium text-gray-900">{purchaseOrder.requester_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Vendor</p>
+                    <p className="font-medium text-gray-900">
+                      {purchaseOrder.request_details.vendor_name || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total Amount</p>
+                    <p className="text-xl font-semibold text-gray-900">
+                      {formatCurrency(purchaseOrder.request_details.total_amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <div className="mt-1">
+                      {getStatusBadge(purchaseOrder.request_details.status)}
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Total */}
-              <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                <span className="text-lg font-medium text-gray-700">Total Amount:</span>
-                <span className="text-2xl font-bold text-gray-900">
-                  ${Number(purchaseOrder.request_details.total_amount).toFixed(2)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Receipts */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Receipts</CardTitle>
-              <CardDescription>
-                {receipts.length === 0
-                  ? 'No receipts uploaded yet'
-                  : `${receipts.length} receipt(s) uploaded`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {receipts.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600 mb-4">No receipts have been uploaded yet</p>
-                  <Button
-                    onClick={() =>
-                      navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)
-                    }
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Receipt
-                  </Button>
                 </div>
-              ) : (
+
+                {purchaseOrder.request_details.description && (
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Description</p>
+                    <p className="text-gray-900">
+                      {purchaseOrder.request_details.description}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Items */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">Items</CardTitle>
+                <CardDescription>
+                  {purchaseOrder.request_details.items.length} item(s) in this order
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-3">
-                  {receipts.map((receipt) => (
+                  {purchaseOrder.request_details.items.map((item, index) => (
                     <div
-                      key={receipt.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                      key={item.id || index}
+                      className="flex items-start justify-between p-4 border rounded-lg bg-white"
                     >
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            Receipt #{receipt.id}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Uploaded by {receipt.uploaded_by_name} on{' '}
-                            {new Date(receipt.uploaded_at).toLocaleDateString()}
-                          </p>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{item.description}</p>
+                        {item.notes && (
+                          <p className="text-sm text-gray-500 mt-1">{item.notes}</p>
+                        )}
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                          <span>Qty: {item.quantity}</span>
+                          <span>•</span>
+                          <span>Unit Price: {formatCurrency(item.unit_price)}</span>
+                          {item.unit_of_measure && (
+                            <>
+                              <span>•</span>
+                              <span>{item.unit_of_measure}</span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        {getValidationStatusBadge(receipt.validation_status)}
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => navigate(`${getBasePath()}/receipts/${receipt.id}/validate`)}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Validate
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(receipt.receipt_url, '_blank')}
-                        >
-                          View File
-                        </Button>
+                      <div className="text-right ml-4">
+                        <p className="font-semibold text-gray-900">
+                          {formatCurrency(Number(item.quantity) * Number(item.unit_price))}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Sidebar - Right Column */}
-        <div className="space-y-6">
-          {/* Quick Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                {/* Total */}
+                <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                  <span className="text-lg font-medium text-gray-700">Total Amount:</span>
+                  <span className="text-2xl font-semibold text-gray-900">
+                    {formatCurrency(purchaseOrder.request_details.total_amount)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Receipts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">Receipts</CardTitle>
+                <CardDescription>
+                  {receipts.length === 0
+                    ? 'No receipts uploaded yet'
+                    : `${receipts.length} receipt(s) uploaded`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {receipts.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                    <p className="text-gray-900 font-medium">No receipts uploaded</p>
+                    <p className="text-sm text-gray-500 mt-1 mb-4">Upload a receipt to validate against this PO</p>
+                    <Button
+                      onClick={() =>
+                        navigate(`${getBasePath()}/purchase-orders/${purchaseOrder.id}/upload-receipt`)
+                      }
+                      size="sm"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Receipt
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {receipts.map((receipt) => (
+                      <div
+                        key={receipt.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-white"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            Receipt #{receipt.id}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Uploaded by {receipt.uploaded_by_name} on {formatDate(receipt.uploaded_at)}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          {getValidationStatusBadge(receipt.validation_status)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`${getBasePath()}/receipts/${receipt.id}/validate`)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            {receipt.validation_status === 'PENDING' ? 'Review' : 'View'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar - Right Column */}
+          <div className="space-y-6">
+            {/* Quick Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">Quick Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">Generated</p>
-                  <p className="font-medium">
-                    {new Date(purchaseOrder.generated_at).toLocaleDateString()}
+                  <p className="text-sm text-gray-500">Generated</p>
+                  <p className="font-medium text-gray-900">{formatDate(purchaseOrder.generated_at)}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Requester</p>
+                  <p className="font-medium text-gray-900">{purchaseOrder.requester_name}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Total</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {formatCurrency(purchaseOrder.request_details.total_amount)}
                   </p>
                 </div>
-              </div>
 
-              <div className="flex items-start space-x-3">
-                <User className="h-5 w-5 text-gray-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-600">Requester</p>
-                  <p className="font-medium">{purchaseOrder.requester_name}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-3">
-                <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="font-medium text-lg">
-                    ${Number(purchaseOrder.request_details.total_amount).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-3">
-                <Package className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Items</p>
-                  <p className="font-medium">
+                  <p className="text-sm text-gray-500">Items</p>
+                  <p className="font-medium text-gray-900">
                     {purchaseOrder.request_details.items.length} item(s)
                   </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Approval Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Approval Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {purchaseOrder.request_details.approved_l1_by && (
-                  <div className="flex items-start space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Level 1 Approved</p>
-                      <p className="text-xs text-gray-600">
-                        by{' '}
-                        {purchaseOrder.request_details.approved_l1_by.first_name}{' '}
+            {/* Approval Timeline */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">Approval Timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {purchaseOrder.request_details.approved_l1_by && (
+                    <div className="border-l-2 border-emerald-400 pl-4">
+                      <p className="text-sm font-medium text-gray-900">Level 1 Approved</p>
+                      <p className="text-xs text-gray-500">
+                        by {purchaseOrder.request_details.approved_l1_by.first_name}{' '}
                         {purchaseOrder.request_details.approved_l1_by.last_name}
                       </p>
                       {purchaseOrder.request_details.approved_l1_at && (
-                        <p className="text-xs text-gray-500">
-                          {new Date(
-                            purchaseOrder.request_details.approved_l1_at
-                          ).toLocaleDateString()}
+                        <p className="text-xs text-gray-400">
+                          {formatDate(purchaseOrder.request_details.approved_l1_at)}
                         </p>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {purchaseOrder.request_details.approved_l2_by && (
-                  <div className="flex items-start space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Level 2 Approved</p>
-                      <p className="text-xs text-gray-600">
-                        by{' '}
-                        {purchaseOrder.request_details.approved_l2_by.first_name}{' '}
+                  {purchaseOrder.request_details.approved_l2_by && (
+                    <div className="border-l-2 border-emerald-400 pl-4">
+                      <p className="text-sm font-medium text-gray-900">Level 2 Approved</p>
+                      <p className="text-xs text-gray-500">
+                        by {purchaseOrder.request_details.approved_l2_by.first_name}{' '}
                         {purchaseOrder.request_details.approved_l2_by.last_name}
                       </p>
                       {purchaseOrder.request_details.approved_l2_at && (
-                        <p className="text-xs text-gray-500">
-                          {new Date(
-                            purchaseOrder.request_details.approved_l2_at
-                          ).toLocaleDateString()}
+                        <p className="text-xs text-gray-400">
+                          {formatDate(purchaseOrder.request_details.approved_l2_at)}
                         </p>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {purchaseOrder.request_details.rejected_by && (
-                  <div className="flex items-start space-x-3">
-                    <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">Rejected</p>
-                      <p className="text-xs text-gray-600">
-                        by{' '}
-                        {purchaseOrder.request_details.rejected_by.first_name}{' '}
+                  {purchaseOrder.request_details.rejected_by && (
+                    <div className="border-l-2 border-red-400 pl-4">
+                      <p className="text-sm font-medium text-gray-900">Rejected</p>
+                      <p className="text-xs text-gray-500">
+                        by {purchaseOrder.request_details.rejected_by.first_name}{' '}
                         {purchaseOrder.request_details.rejected_by.last_name}
                       </p>
                       {purchaseOrder.request_details.rejected_at && (
-                        <p className="text-xs text-gray-500">
-                          {new Date(
-                            purchaseOrder.request_details.rejected_at
-                          ).toLocaleDateString()}
+                        <p className="text-xs text-gray-400">
+                          {formatDate(purchaseOrder.request_details.rejected_at)}
                         </p>
                       )}
                       {purchaseOrder.request_details.rejection_reason && (
-                        <p className="text-xs text-gray-700 mt-1">
+                        <p className="text-xs text-gray-600 mt-1">
                           {purchaseOrder.request_details.rejection_reason}
                         </p>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+
+                  {!purchaseOrder.request_details.approved_l1_by &&
+                   !purchaseOrder.request_details.approved_l2_by &&
+                   !purchaseOrder.request_details.rejected_by && (
+                    <p className="text-sm text-gray-500">No approval actions yet</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

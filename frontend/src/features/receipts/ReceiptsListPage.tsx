@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
@@ -11,17 +10,11 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
+import { TableSkeleton } from '@/components/common/LoadingSkeletons';
+import { NoReceiptsEmptyState, NoResultsEmptyState } from '@/components/common/EmptyState';
 import { receiptsAPI } from '@/api/receipts';
 import type { Receipt } from '@/types';
-import {
-  FileText,
-  Eye,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  DollarSign,
-  Calendar,
-} from 'lucide-react';
+import { Eye } from 'lucide-react';
 
 export const ReceiptsListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -84,37 +77,28 @@ export const ReceiptsListPage: React.FC = () => {
     fetchReceipts();
   }, [debouncedSearch, statusFilter, currentPage, pageSize, toast]);
 
+  // Status badge with subtle colors
   const getStatusBadge = (status: string) => {
-    const badges: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode; label: string }> = {
-      PENDING: {
-        variant: 'secondary',
-        icon: <Clock className="h-3 w-3" />,
-        label: 'Pending Validation',
-      },
-      MATCHED: {
-        variant: 'default',
-        icon: <CheckCircle className="h-3 w-3" />,
-        label: 'Matched',
-      },
-      APPROVED: {
-        variant: 'default',
-        icon: <CheckCircle className="h-3 w-3" />,
-        label: 'Approved',
-      },
-      DISCREPANCY: {
-        variant: 'outline',
-        icon: <AlertTriangle className="h-3 w-3" />,
-        label: 'Has Discrepancies',
-      },
+    const styles: Record<string, string> = {
+      PENDING: 'bg-amber-50 text-amber-700',
+      MATCHED: 'bg-blue-50 text-blue-700',
+      APPROVED: 'bg-emerald-50 text-emerald-700',
+      VALIDATED: 'bg-emerald-50 text-emerald-700',
+      DISCREPANCY: 'bg-red-50 text-red-700',
     };
 
-    const badge = badges[status] || badges.PENDING;
+    const labels: Record<string, string> = {
+      PENDING: 'Pending',
+      MATCHED: 'Matched',
+      APPROVED: 'Approved',
+      VALIDATED: 'Validated',
+      DISCREPANCY: 'Discrepancy',
+    };
 
     return (
-      <Badge variant={badge.variant} className="flex items-center gap-1 w-fit">
-        {badge.icon}
-        <span>{badge.label}</span>
-      </Badge>
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || styles.PENDING}`}>
+        {labels[status] || status}
+      </span>
     );
   };
 
@@ -124,17 +108,15 @@ export const ReceiptsListPage: React.FC = () => {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
 
   const formatCurrency = (amount: number | string) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return numAmount.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(numAmount);
   };
 
   const getBasePath = () => {
@@ -153,8 +135,8 @@ export const ReceiptsListPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Receipts</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-semibold text-gray-900">Receipts</h1>
+          <p className="text-sm text-gray-500 mt-1">
             View and validate all uploaded receipts
           </p>
         </div>
@@ -186,7 +168,6 @@ export const ReceiptsListPage: React.FC = () => {
                   size="sm"
                   onClick={() => handleStatusFilterChange('PENDING')}
                 >
-                  <Clock className="h-4 w-4 mr-1" />
                   Pending
                 </Button>
                 <Button
@@ -194,7 +175,6 @@ export const ReceiptsListPage: React.FC = () => {
                   size="sm"
                   onClick={() => handleStatusFilterChange('MATCHED')}
                 >
-                  <CheckCircle className="h-4 w-4 mr-1" />
                   Matched
                 </Button>
                 <Button
@@ -202,7 +182,6 @@ export const ReceiptsListPage: React.FC = () => {
                   size="sm"
                   onClick={() => handleStatusFilterChange('APPROVED')}
                 >
-                  <CheckCircle className="h-4 w-4 mr-1" />
                   Approved
                 </Button>
                 <Button
@@ -210,7 +189,6 @@ export const ReceiptsListPage: React.FC = () => {
                   size="sm"
                   onClick={() => handleStatusFilterChange('DISCREPANCY')}
                 >
-                  <AlertTriangle className="h-4 w-4 mr-1" />
                   Discrepancies
                 </Button>
               </div>
@@ -220,34 +198,33 @@ export const ReceiptsListPage: React.FC = () => {
 
         {/* Loading State */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading receipts...</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">All Receipts</CardTitle>
+              <CardDescription>
+                Click on a receipt to view details and validate
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TableSkeleton rows={5} columns={8} />
+            </CardContent>
+          </Card>
         )}
 
         {/* Empty State */}
         {!loading && receipts.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No receipts found
-              </h3>
-              <p className="text-gray-600">
-                {searchTerm || statusFilter !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'Receipts will appear here once they are uploaded'}
-              </p>
-            </CardContent>
-          </Card>
+          searchTerm || statusFilter !== 'all' ? (
+            <NoResultsEmptyState searchTerm={searchTerm} />
+          ) : (
+            <NoReceiptsEmptyState />
+          )
         )}
 
         {/* Receipts Table */}
         {!loading && receipts.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>All Receipts ({totalCount})</CardTitle>
+              <CardTitle className="text-lg font-medium">All Receipts ({totalCount})</CardTitle>
               <CardDescription>
                 Click on a receipt to view details and validate
               </CardDescription>
@@ -271,10 +248,7 @@ export const ReceiptsListPage: React.FC = () => {
                   {receipts.map((receipt) => (
                     <TableRow key={receipt.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        <div className="flex items-center space-x-2">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span className="font-mono">RCP-{receipt.id}</span>
-                        </div>
+                        RCP-{receipt.id}
                       </TableCell>
                       <TableCell>
                         <span className="font-mono text-sm">
@@ -282,48 +256,39 @@ export const ReceiptsListPage: React.FC = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-xs truncate">
+                        <div className="max-w-xs truncate text-gray-900">
                           {receipt.request_title || 'N/A'}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {receipt.uploaded_by_name || 'Unknown'}
-                        </span>
+                      <TableCell className="text-gray-600">
+                        {receipt.uploaded_by_name || 'Unknown'}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1 text-sm text-gray-600">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDate(receipt.uploaded_at)}</span>
-                        </div>
+                      <TableCell className="text-gray-500">
+                        {formatDate(receipt.uploaded_at)}
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(receipt.validation_status)}
                       </TableCell>
                       <TableCell>
                         {receipt.discrepancies && receipt.discrepancies.length > 0 ? (
-                          <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                            <AlertTriangle className="h-3 w-3 text-yellow-600" />
-                            <span>{receipt.discrepancies.length}</span>
-                          </Badge>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">
+                            {receipt.discrepancies.length}
+                          </span>
                         ) : (
                           <span className="text-sm text-gray-400">None</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right font-medium">
                         {receipt.total_amount ? (
-                          <div className="flex items-center justify-end space-x-1 font-semibold text-green-600">
-                            <DollarSign className="h-4 w-4" />
-                            <span>{formatCurrency(receipt.total_amount)}</span>
-                          </div>
+                          formatCurrency(receipt.total_amount)
                         ) : (
-                          <span className="text-sm text-gray-400">N/A</span>
+                          <span className="text-gray-400">N/A</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           onClick={() => navigate(`${getBasePath()}/receipts/${receipt.id}/validate`)}
-                          variant="default"
+                          variant="outline"
                           size="sm"
                         >
                           <Eye className="h-4 w-4 mr-1" />

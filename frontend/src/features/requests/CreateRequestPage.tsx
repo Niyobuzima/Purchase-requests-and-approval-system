@@ -10,7 +10,7 @@ import { handleAndFormatError, ErrorHandlers } from '@/utils/errorHandler';
 import { calculateSubtotal, calculateTotal } from '@/utils/calculateSubtotal';
 import { purchaseRequestsAPI } from '@/api/purchaseRequests';
 import type { RequestItem, CreatePurchaseRequestData } from '@/types';
-import { Plus, Trash2, DollarSign } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft } from 'lucide-react';
 
 const CreateRequestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +29,13 @@ const CreateRequestPage: React.FC = () => {
     },
   ]);
   const [loading, setLoading] = useState(false);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
 
   // Add new item row
   const handleAddItem = () => {
@@ -209,14 +216,23 @@ const CreateRequestPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-5xl mx-auto">
+        {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Create Purchase Request</h1>
-          <p className="text-gray-600 mt-1">Fill in the details for your purchase request</p>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/staff/requests')}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Requests
+          </Button>
+          <h1 className="text-2xl font-semibold text-gray-900">Create Purchase Request</h1>
+          <p className="text-sm text-gray-500 mt-1">Fill in the details for your purchase request</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Request Details</CardTitle>
+            <CardTitle className="text-lg font-medium">Request Details</CardTitle>
             <CardDescription>
               Provide a title and description for this purchase request
             </CardDescription>
@@ -241,7 +257,7 @@ const CreateRequestPage: React.FC = () => {
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-400">
                 Enter the name of the vendor or supplier for this purchase
               </p>
             </div>
@@ -264,7 +280,7 @@ const CreateRequestPage: React.FC = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Items</CardTitle>
+                <CardTitle className="text-lg font-medium">Items</CardTitle>
                 <CardDescription>Add items to your purchase request</CardDescription>
               </div>
               <Button onClick={handleAddItem} size="sm" variant="outline">
@@ -276,9 +292,9 @@ const CreateRequestPage: React.FC = () => {
           <CardContent>
             <div className="space-y-4">
               {items.map((item, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-4">
+                <div key={index} className="border rounded-lg p-4 space-y-4 bg-white">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium">Item {index + 1}</h4>
+                    <h4 className="text-sm font-medium text-gray-900">Item {index + 1}</h4>
                     {items.length > 1 && (
                       <Button
                         onClick={() => handleRemoveItem(index)}
@@ -344,8 +360,7 @@ const CreateRequestPage: React.FC = () => {
                     <div className="space-y-2">
                       <Label>Subtotal</Label>
                       <div className="flex items-center h-10 px-3 py-2 border rounded-md bg-gray-50">
-                        <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                        <span className="font-medium">{calculateSubtotal(item).toFixed(2)}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(calculateSubtotal(item))}</span>
                       </div>
                     </div>
 
@@ -366,13 +381,12 @@ const CreateRequestPage: React.FC = () => {
           </CardContent>
           <CardFooter className="border-t bg-gray-50">
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm text-gray-600">{items.length} item(s)</span>
+              <span className="text-sm text-gray-500">{items.length} item(s)</span>
               <div className="flex items-center space-x-2">
-                <span className="text-lg font-semibold">Total:</span>
-                <div className="flex items-center text-2xl font-bold text-green-600">
-                  <DollarSign className="h-6 w-6" />
-                  {getTotalAmount().toFixed(2)}
-                </div>
+                <span className="text-lg font-medium text-gray-700">Total:</span>
+                <span className="text-2xl font-semibold text-gray-900">
+                  {formatCurrency(getTotalAmount())}
+                </span>
               </div>
             </div>
           </CardFooter>

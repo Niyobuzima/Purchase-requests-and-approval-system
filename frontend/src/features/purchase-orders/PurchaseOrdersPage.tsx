@@ -11,7 +11,9 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { FileText, Download, Eye, DollarSign, AlertTriangle, Upload } from 'lucide-react';
+import { TableSkeleton } from '@/components/common/LoadingSkeletons';
+import { NoPurchaseOrdersEmptyState, NoResultsEmptyState } from '@/components/common/EmptyState';
+import { Download, Eye, Upload } from 'lucide-react';
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
@@ -116,8 +118,8 @@ export const PurchaseOrdersPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Purchase Orders</h1>
-          <p className="text-gray-600 mt-1">View and download generated purchase orders</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Purchase Orders</h1>
+          <p className="text-sm text-gray-500 mt-1">View and download generated purchase orders</p>
         </div>
 
         {/* Search */}
@@ -133,34 +135,33 @@ export const PurchaseOrdersPage: React.FC = () => {
 
         {/* Loading State */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading purchase orders...</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">All Purchase Orders</CardTitle>
+              <CardDescription>
+                Click on a purchase order to view details or download the PDF
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TableSkeleton rows={5} columns={6} />
+            </CardContent>
+          </Card>
         )}
 
         {/* Empty State */}
         {!loading && purchaseOrders.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {searchTerm ? 'No purchase orders found' : 'No Purchase Orders Yet'}
-              </h3>
-              <p className="text-gray-600">
-                {searchTerm
-                  ? 'Try adjusting your search criteria'
-                  : 'Purchase orders will appear here after requests are fully approved'}
-              </p>
-            </CardContent>
-          </Card>
+          searchTerm ? (
+            <NoResultsEmptyState searchTerm={searchTerm} />
+          ) : (
+            <NoPurchaseOrdersEmptyState />
+          )
         )}
 
         {/* Purchase Orders List */}
         {!loading && purchaseOrders.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>All Purchase Orders ({totalCount})</CardTitle>
+              <CardTitle className="text-lg font-medium">All Purchase Orders ({totalCount})</CardTitle>
               <CardDescription>
                 Click on a purchase order to view details or download the PDF
               </CardDescription>
@@ -172,7 +173,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                     <TableHead>PO Number</TableHead>
                     <TableHead>Request</TableHead>
                     <TableHead>Requester</TableHead>
-                    <TableHead>Total Amount</TableHead>
+                    <TableHead className="text-right">Total Amount</TableHead>
                     <TableHead>Generated Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -180,45 +181,36 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <TableBody>
                   {purchaseOrders.map((po) => (
                     <TableRow key={po.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span className="font-mono font-semibold text-blue-600">
-                            {po.po_number}
-                          </span>
-                        </div>
+                      <TableCell className="font-medium">
+                        {po.po_number}
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-xs truncate" title={po.request_title}>
+                        <div className="max-w-xs truncate text-gray-900" title={po.request_title}>
                           {po.request_title}
                         </div>
                       </TableCell>
-                      <TableCell>{po.requester_name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1 font-semibold text-green-600">
-                          <DollarSign className="h-4 w-4" />
-                          <span>
-                            {(() => {
-                              const val = Number(po.request_total);
-                              return Number.isFinite(val) ? val.toFixed(2) : '0.00';
-                            })()}
-                          </span>
-                        </div>
+                      <TableCell className="text-gray-600">{po.requester_name}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {(() => {
+                          const val = Number(po.request_total);
+                          return new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                          }).format(Number.isFinite(val) ? val : 0);
+                        })()}
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">
-                          {formatDate(po.generated_at)}
-                        </span>
+                      <TableCell className="text-gray-500">
+                        {formatDate(po.generated_at)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end items-center space-x-2">
+                        <div className="flex justify-end items-center gap-2">
                           <Button
                             onClick={() => navigate(`${getBasePath()}/purchase-orders/${po.id}`)}
-                            variant="default"
+                            variant="outline"
                             size="sm"
                           >
                             <Eye className="h-4 w-4 mr-1" />
-                            View Details
+                            View
                           </Button>
                           {po.pdf_file ? (
                             <>
@@ -227,7 +219,6 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 disabled={downloading === po.id}
                                 variant="outline"
                                 size="sm"
-                                className="relative"
                               >
                                 <Download className="h-4 w-4 mr-1" />
                                 {downloading === po.id ? 'Downloading...' : 'Download'}
@@ -236,19 +227,15 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 onClick={() => navigate(`${getBasePath()}/purchase-orders/${po.id}/upload-receipt`)}
                                 variant="outline"
                                 size="sm"
-                                className="bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                               >
                                 <Upload className="h-4 w-4 mr-1" />
                                 Upload Receipt
                               </Button>
                             </>
                           ) : (
-                            <div className="flex items-center space-x-2">
-                              <div className="flex items-center text-xs text-yellow-600 px-3 py-1 bg-yellow-50 rounded border border-yellow-200">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                PDF Processing
-                              </div>
-                            </div>
+                            <span className="text-xs text-gray-500 px-3 py-1 bg-gray-100 rounded">
+                              PDF Processing
+                            </span>
                           )}
                         </div>
                       </TableCell>

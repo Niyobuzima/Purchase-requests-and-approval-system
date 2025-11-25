@@ -5,27 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { adminAPI } from '@/api/admin';
-import type { AdminDashboardStats, AdminUser } from '@/types';
-import {
-  Users,
-  UserCheck,
-  UserX,
-  Shield,
-  FileText,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  Loader2,
-  UserPlus,
-  Settings,
-} from 'lucide-react';
+import type { AdminDashboardStats } from '@/types';
+import { CheckCircle, Loader2, UserPlus, UserX } from 'lucide-react';
 
 const ROLE_COLORS: Record<string, string> = {
-  STAFF: 'bg-blue-100 text-blue-800',
-  APPROVER_L1: 'bg-purple-100 text-purple-800',
-  APPROVER_L2: 'bg-indigo-100 text-indigo-800',
-  FINANCE: 'bg-green-100 text-green-800',
-  ADMIN: 'bg-red-100 text-red-800',
+  STAFF: 'bg-blue-50 text-blue-700',
+  APPROVER_L1: 'bg-purple-50 text-purple-700',
+  APPROVER_L2: 'bg-indigo-50 text-indigo-700',
+  FINANCE: 'bg-emerald-50 text-emerald-700',
+  ADMIN: 'bg-red-50 text-red-700',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -74,7 +62,7 @@ export const AdminDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
       </div>
     );
   }
@@ -84,8 +72,8 @@ export const AdminDashboard: React.FC = () => {
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600 mt-2">Manage users and system settings</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage users and system settings</p>
         </div>
         <Button onClick={() => navigate('/admin/users/new')}>
           <UserPlus className="h-4 w-4 mr-2" />
@@ -95,40 +83,31 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Summary Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           {/* Total Users */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.total_users}</div>
-              <p className="text-xs text-gray-600 mt-1">Registered users</p>
+          <Card className="border-l-4 border-l-blue-400">
+            <CardContent className="pt-6">
+              <p className="text-sm font-medium text-gray-500">Total Users</p>
+              <p className="text-2xl font-semibold text-gray-900 mt-1">{stats.total_users}</p>
+              <p className="text-xs text-gray-400 mt-1">Registered in system</p>
             </CardContent>
           </Card>
 
           {/* Active Users */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.active_users}</div>
-              <p className="text-xs text-gray-600 mt-1">Currently active</p>
+          <Card className="border-l-4 border-l-emerald-400">
+            <CardContent className="pt-6">
+              <p className="text-sm font-medium text-gray-500">Active Users</p>
+              <p className="text-2xl font-semibold text-gray-900 mt-1">{stats.active_users}</p>
+              <p className="text-xs text-gray-400 mt-1">Currently active accounts</p>
             </CardContent>
           </Card>
 
           {/* Inactive Users */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inactive Users</CardTitle>
-              <UserX className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.inactive_users}</div>
-              <p className="text-xs text-gray-600 mt-1">Deactivated accounts</p>
+          <Card className="border-l-4 border-l-gray-400">
+            <CardContent className="pt-6">
+              <p className="text-sm font-medium text-gray-500">Inactive Users</p>
+              <p className="text-2xl font-semibold text-gray-900 mt-1">{stats.inactive_users}</p>
+              <p className="text-xs text-gray-400 mt-1">Deactivated accounts</p>
             </CardContent>
           </Card>
         </div>
@@ -139,10 +118,7 @@ export const AdminDashboard: React.FC = () => {
         {stats && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Shield className="h-5 w-5 text-purple-600" />
-                <span>Users by Role</span>
-              </CardTitle>
+              <CardTitle className="text-lg font-medium">Users by Role</CardTitle>
               <CardDescription>Distribution of user roles</CardDescription>
             </CardHeader>
             <CardContent>
@@ -157,9 +133,9 @@ export const AdminDashboard: React.FC = () => {
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-4">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                        <div className="w-32 bg-gray-100 rounded-full h-2">
                           <div
-                            className="bg-purple-600 h-2 rounded-full"
+                            className="bg-blue-500 h-2 rounded-full"
                             style={{
                               width: `${percent}%`,
                             }}
@@ -178,10 +154,7 @@ export const AdminDashboard: React.FC = () => {
         {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Settings className="h-5 w-5 text-gray-600" />
-              <span>Quick Actions</span>
-            </CardTitle>
+            <CardTitle className="text-lg font-medium">Quick Actions</CardTitle>
             <CardDescription>Common administrative tasks</CardDescription>
           </CardHeader>
           <CardContent>
@@ -191,7 +164,6 @@ export const AdminDashboard: React.FC = () => {
                 className="justify-start h-12"
                 onClick={() => navigate('/admin/users')}
               >
-                <Users className="h-4 w-4 mr-3" />
                 Manage All Users
               </Button>
               <Button
@@ -199,7 +171,6 @@ export const AdminDashboard: React.FC = () => {
                 className="justify-start h-12"
                 onClick={() => navigate('/admin/users/new')}
               >
-                <UserPlus className="h-4 w-4 mr-3" />
                 Create New User
               </Button>
               <Button
@@ -207,7 +178,6 @@ export const AdminDashboard: React.FC = () => {
                 className="justify-start h-12"
                 onClick={() => navigate('/admin/users?is_active=false')}
               >
-                <UserX className="h-4 w-4 mr-3" />
                 View Inactive Users
               </Button>
             </div>
@@ -221,10 +191,7 @@ export const AdminDashboard: React.FC = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <span>Recent Users</span>
-                </CardTitle>
+                <CardTitle className="text-lg font-medium">Recent Users</CardTitle>
                 <CardDescription>Recently registered users</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => navigate('/admin/users')}>
@@ -241,8 +208,8 @@ export const AdminDashboard: React.FC = () => {
                   onClick={() => navigate(`/admin/users/${user.id}`)}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-sm font-semibold text-gray-600">
+                    <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-white">
                         {user.first_name?.[0] || user.email[0].toUpperCase()}
                       </span>
                     </div>
@@ -258,9 +225,9 @@ export const AdminDashboard: React.FC = () => {
                       {user.role_display}
                     </Badge>
                     {user.is_active ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-emerald-600" />
                     ) : (
-                      <UserX className="h-4 w-4 text-red-600" />
+                      <UserX className="h-4 w-4 text-gray-400" />
                     )}
                     <span className="text-sm text-gray-500">{formatDate(user.created_at)}</span>
                   </div>
