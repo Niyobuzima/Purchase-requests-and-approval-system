@@ -5,14 +5,23 @@ import Layout from '../components/layout/Layout';
 import LoginPage from '../features/auth/LoginPage';
 import RegisterPage from '../features/auth/RegisterPage';
 import ProfilePage from '../features/profile/ProfilePage';
+import LandingPage from '../features/landing/LandingPage';
 import { useAuth } from '../hooks/useAuth';
 import type { UserRole } from '../types';
 
-// Redirect to role-based dashboard
-const RoleBasedRedirect: React.FC = () => {
-  const { user } = useAuth();
+// Show landing page for guests, redirect authenticated users to dashboard
+const LandingOrDashboard: React.FC = () => {
+  const { user, loading } = useAuth();
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (!user) return <LandingPage />;
 
   const roleRoutes: Record<UserRole, string> = {
     STAFF: '/staff/dashboard',
@@ -22,7 +31,7 @@ const RoleBasedRedirect: React.FC = () => {
     ADMIN: '/admin/dashboard',
   };
 
-  return <Navigate to={roleRoutes[user.role] || '/login'} replace />;
+  return <Navigate to={roleRoutes[user.role] || '/staff/dashboard'} replace />;
 };
 
 // Purchase Request Components
@@ -60,6 +69,10 @@ const UnauthorizedPage: React.FC = () => (
 
 const router = createBrowserRouter([
   {
+    path: '/',
+    element: <LandingOrDashboard />,
+  },
+  {
     path: '/login',
     element: <LoginPage />,
   },
@@ -72,7 +85,7 @@ const router = createBrowserRouter([
     element: <UnauthorizedPage />,
   },
   {
-    path: '/',
+    path: '/profile',
     element: (
       <ProtectedRoute>
         <Layout />
@@ -81,10 +94,6 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <RoleBasedRedirect />,
-      },
-      {
-        path: 'profile',
         element: <ProfilePage />,
       },
     ],

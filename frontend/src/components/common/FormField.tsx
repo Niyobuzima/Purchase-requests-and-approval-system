@@ -73,15 +73,18 @@ export const FormField: React.FC<FormFieldProps> = ({
 // Input with built-in error styling
 interface FormInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
+  success?: boolean;
 }
 
 export const FormInput = React.forwardRef<HTMLInputElement, FormInputProps>(
-  ({ error, className, ...props }, ref) => {
+  ({ error, success, className, ...props }, ref) => {
     return (
       <Input
         ref={ref}
         className={cn(
-          error && 'border-red-500 focus-visible:ring-red-500 pr-10',
+          error && 'border-red-500 focus-visible:ring-red-500',
+          success && 'border-green-500 focus-visible:ring-green-500',
+          (error || success) && 'pr-10',
           className
         )}
         {...props}
@@ -102,7 +105,7 @@ export const FormTextarea = React.forwardRef<HTMLTextAreaElement, FormTextareaPr
       <Textarea
         ref={ref}
         className={cn(
-          error && 'border-red-500 focus-visible:ring-red-500',
+          error && 'border-red-500 focus-visible:ring-red-500 pr-10',
           className
         )}
         {...props}

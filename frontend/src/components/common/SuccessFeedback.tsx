@@ -97,19 +97,28 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   labels,
   className,
 }) => {
+  // Guard against invalid totalSteps
+  const safeTotalSteps = Math.max(1, totalSteps);
+  const safeCurrentStep = Math.max(0, Math.min(currentStep, safeTotalSteps - 1));
+  
+  // Calculate progress: handle single-step case (100% when step is complete)
+  const progress = safeTotalSteps === 1 
+    ? (safeCurrentStep === 0 ? 100 : 100)
+    : Math.min(100, Math.max(0, (safeCurrentStep / (safeTotalSteps - 1)) * 100));
+
   return (
     <div className={cn('w-full', className)}>
       <div className="flex justify-between mb-2">
-        {Array.from({ length: totalSteps }).map((_, index) => {
-          const isCompleted = index < currentStep;
-          const isCurrent = index === currentStep;
+        {Array.from({ length: safeTotalSteps }).map((_, index) => {
+          const isCompleted = index < safeCurrentStep;
+          const isCurrent = index === safeCurrentStep;
 
           return (
             <div
               key={index}
               className={cn(
                 'flex flex-col items-center flex-1',
-                index < totalSteps - 1 ? 'pr-4' : ''
+                index < safeTotalSteps - 1 ? 'pr-4' : ''
               )}
             >
               <div
@@ -146,7 +155,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
       <div className="relative h-1 bg-gray-200 rounded-full overflow-hidden">
         <div
           className="absolute left-0 top-0 h-full bg-green-600 transition-all duration-500 ease-out"
-          style={{ width: `${(currentStep / (totalSteps - 1)) * 100}%` }}
+          style={{ width: `${progress}%` }}
         />
       </div>
     </div>
