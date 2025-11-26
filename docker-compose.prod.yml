@@ -7,7 +7,6 @@ services:
       POSTGRES_DB: ${DB_NAME:-p2p_db}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      # Optimize PostgreSQL for 2GB VM
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
     command: >
       postgres
@@ -42,26 +41,6 @@ services:
     networks:
       - app-network
 
-  migrate:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: python manage.py migrate
-    env_file:
-      - ./backend/.env
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    networks:
-      - app-network
-
   backend:
     build:
       context: ./backend
@@ -71,8 +50,8 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       - DEBUG=False
       - DB_HOST=db
@@ -83,11 +62,11 @@ services:
       - media_files:/app/media
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/admin/login/')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:

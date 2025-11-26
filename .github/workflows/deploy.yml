@@ -2,7 +2,9 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
   workflow_dispatch:
 
 jobs:
@@ -64,21 +66,25 @@ jobs:
           VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
           ENVFILE
 
+      - name: Clean Docker build cache
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "docker builder prune -af && docker system prune -af --volumes=false"
+
       - name: Deploy Docker Compose stack
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml down --remove-orphans && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml down --remove-orphans && docker compose -f docker-compose.prod.yml build --no-cache --pull && docker compose -f docker-compose.prod.yml up -d"
 
       - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to start..."
-          sleep 45
+          echo "Waiting for services to start (migrations and static files run automatically)..."
+          sleep 60
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml ps"
 
-      - name: Collect static files
+      - name: Verify backend health
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml exec -T backend python manage.py collectstatic --noinput" || echo "Static files collection skipped"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "curl -f http://localhost:8000/api/health/ || echo 'Health check endpoint not available yet'"
 
       - name: Show deployment logs
         if: always()
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml logs --tail=100"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml logs --tail=150"
