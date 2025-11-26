@@ -68,18 +68,19 @@ export const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage users and system settings</p>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage users and system settings</p>
+          </div>
+          <Button onClick={() => navigate('/admin/users/new')}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
         </div>
-        <Button onClick={() => navigate('/admin/users/new')}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
-      </div>
 
       {/* Summary Stats */}
       {stats && (
@@ -237,6 +238,7 @@ export const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 };

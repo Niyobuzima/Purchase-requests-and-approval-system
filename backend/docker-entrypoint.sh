@@ -116,10 +116,16 @@ END
 fi
 
 echo "Running migrations..."
-python manage.py migrate --noinput || echo "Migration failed, continuing..."
+python manage.py migrate --noinput
+if [ $? -ne 0 ]; then
+    echo "ERROR: Migration failed! This is a critical error."
+    echo "Please check migration logs and database connectivity."
+    exit 1
+fi
+echo "Migrations completed successfully."
 
-echo "Collecting static files..."
-python manage.py collectstatic --noinput || true
+echo "Ensuring static files are up to date..."
+python manage.py collectstatic --noinput 2>/dev/null || echo "Static files already collected during build"
 
 echo "Seeding test users..."
 if python manage.py seed_users 2>&1; then
