@@ -14,7 +14,7 @@ from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.purchase_orders.models import PurchaseOrder
-from apps.purchase_orders.serializers import PurchaseOrderSerializer, PurchaseOrderListSerializer
+from apps.purchase_orders.serializers import PurchaseOrderSerializer, PurchaseOrderListSerializer, PurchaseOrderDetailSerializer
 from apps.purchase_orders.filters import PurchaseOrderFilter
 import requests
 
@@ -48,21 +48,36 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
         """
         user = self.request.user
 
+        # Base queryset with select_related for performance
+        base_select = [
+            'request',
+            'request__requester',
+            'request__approved_l1_by',
+            'request__approved_l2_by',
+            'request__rejected_by',
+        ]
+
         if user.role == 'STAFF':
             # Staff see only POs for their requests
-            return PurchaseOrder.objects.filter(
+            queryset = PurchaseOrder.objects.filter(
                 request__requester=user
-            ).select_related('request', 'request__requester')
+            ).select_related(*base_select)
         else:
             # Approvers and admins see all POs
-            return PurchaseOrder.objects.all().select_related(
-                'request', 'request__requester'
-            )
+            queryset = PurchaseOrder.objects.all().select_related(*base_select)
+
+        # For detail view, prefetch items to avoid N+1
+        if self.action == 'retrieve':
+            queryset = queryset.prefetch_related('request__items')
+
+        return queryset
 
     def get_serializer_class(self):
-        """Use different serializer for list vs detail"""
+        """Use appropriate serializer based on action"""
         if self.action == 'list':
             return PurchaseOrderListSerializer
+        elif self.action == 'retrieve':
+            return PurchaseOrderDetailSerializer
         return PurchaseOrderSerializer
 
     @action(detail=True, methods=['get'])
