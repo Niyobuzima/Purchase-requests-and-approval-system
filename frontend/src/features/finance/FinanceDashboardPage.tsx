@@ -39,8 +39,8 @@ export const FinanceDashboardPage: React.FC = () => {
       ]);
 
       // Handle potential response format variations (with or without wrapper)
-      // statsData could be { stats: {...} } or directly { total_spent, ... }
-      const resolvedStats = statsData?.stats || (statsData?.total_spent !== undefined ? statsData : null);
+      // statsData is { stats: DashboardStats }
+      const resolvedStats = statsData?.stats || null;
       setStats(resolvedStats);
       setSpendingByVendor(spendingData?.spending_by_vendor || []);
       setMonthlySpending(spendingData?.monthly_spending || []);
