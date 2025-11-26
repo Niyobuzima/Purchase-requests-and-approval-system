@@ -1,12 +1,16 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from apps.purchase_orders.models import PurchaseOrder
-from apps.purchase_requests.serializers import PurchaseRequestSerializer
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
-    """Serializer for Purchase Order model"""
+    """
+    Serializer for Purchase Order model.
+    Optimized to avoid N+1 queries - uses flat fields instead of nested serializers.
+    For detail view, request_details provides essential info without full nesting.
+    """
 
-    request_details = PurchaseRequestSerializer(source='request', read_only=True)
+    # Flat request fields (avoids N+1)
     request_title = serializers.CharField(source='request.title', read_only=True)
     request_total = serializers.DecimalField(
         source='request.total_amount',
@@ -14,6 +18,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True
     )
+    request_status = serializers.CharField(source='request.status', read_only=True)
+    request_vendor = serializers.CharField(source='request.vendor_name', read_only=True)
     requester_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -21,9 +27,10 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'request',
-            'request_details',
             'request_title',
             'request_total',
+            'request_status',
+            'request_vendor',
             'requester_name',
             'po_number',
             'generated_at',
@@ -39,7 +46,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
-    def get_requester_name(self, obj):
+    @extend_schema_field(str)
+    def get_requester_name(self, obj) -> str:
         """Get requester's full name"""
         if obj.request and obj.request.requester:
             user = obj.request.requester
