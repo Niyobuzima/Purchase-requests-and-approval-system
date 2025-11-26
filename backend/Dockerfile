@@ -35,7 +35,10 @@ RUN uv venv /app/.venv && \
         pillow==10.1.0 \
         reportlab==4.0.7 \
         uvicorn[standard]==0.27.0 \
-        gunicorn==21.2.0
+        gunicorn==21.2.0 \
+        drf-spectacular==0.27.0 \
+        drf-spectacular-sidecar==2024.1.1 \
+        whitenoise==6.6.0
 
 #Final Stage
 FROM python:3.11-slim

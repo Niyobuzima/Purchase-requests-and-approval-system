@@ -121,8 +121,12 @@ python manage.py migrate --noinput || echo "Migration failed, continuing..."
 echo "Collecting static files..."
 python manage.py collectstatic --noinput || true
 
-echo "Running User Seeders for test..."
-python manage.py seed_users || echo "Seeding failed, continuing...."
+echo "Seeding test users..."
+if python manage.py seed_users 2>&1; then
+    echo "Test users seeded successfully!"
+else
+    echo "Seeding skipped (users may already exist)"
+fi
 
 echo "Starting server..."
 exec "$@"
