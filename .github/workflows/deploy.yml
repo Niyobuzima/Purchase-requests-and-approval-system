@@ -2,9 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [develop, main]
-  pull_request:
-    branches: [develop, main]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -15,7 +13,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -32,40 +30,55 @@ jobs:
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='venv' \
+            --exclude='__pycache__' \
+            --exclude='.env' \
+            --exclude='*.pyc' \
             -e "ssh -o StrictHostKeyChecking=yes" \
             . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/app
 
-      - name: Create .env files on server
+      - name: Create backend .env file
         run: |
-          # Use <<- 'EOF' to allow indentation inside the SSH block
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} <<- 'EOF'
-            
-            # Use <<- 'EOV' to allow indentation inside the command substitution
-            ENV_CONTENT=$(cat <<- 'EOV'
-              DB_NAME=${{ secrets.DB_NAME }}
-              DB_USER=${{ secrets.DB_USER }}
-              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-              DB_HOST=${{ secrets.DB_HOST }}
-              DB_PORT=${{ secrets.DB_PORT }}
-              ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-              VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
-              DEBUG=False
-            EOV
-            )
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cat > /root/app/backend/.env" << ENVFILE
+          DEBUG=False
+          SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT=${{ secrets.EMAIL_PORT }}
+          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+          ENVFILE
 
-            # Create .env for Backend
-            echo "$ENV_CONTENT" > /root/app/backend/.env
-            
-            # Create .env for Frontend
-            echo "$ENV_CONTENT" > /root/app/frontend/.env
-            
-          EOF # The closing EOF for the SSH session
+      - name: Create frontend .env file
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cat > /root/app/frontend/.env" << ENVFILE
+          VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+          ENVFILE
 
       - name: Deploy Docker Compose stack
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-            cd /root/app
-            docker compose -f docker-compose.prod.yml down --remove-orphans
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --build
-          EOF
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml down --remove-orphans && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d"
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          sleep 45
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml ps"
+
+      - name: Collect static files
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml exec -T backend python manage.py collectstatic --noinput" || echo "Static files collection skipped"
+
+      - name: Show deployment logs
+        if: always()
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml logs --tail=100"
