@@ -38,15 +38,19 @@ export const FinanceDashboardPage: React.FC = () => {
         analyticsAPI.getStatusDistribution(),
       ]);
 
-      setStats(statsData.stats);
-      setSpendingByVendor(spendingData.spending_by_vendor);
-      setMonthlySpending(spendingData.monthly_spending);
-      setPendingReceipts(receiptsData.receipts);
-      setStatusDistribution(distributionData.distribution);
+      // Handle potential response format variations (with or without wrapper)
+      // statsData could be { stats: {...} } or directly { total_spent, ... }
+      const resolvedStats = statsData?.stats || (statsData?.total_spent !== undefined ? statsData : null);
+      setStats(resolvedStats);
+      setSpendingByVendor(spendingData?.spending_by_vendor || []);
+      setMonthlySpending(spendingData?.monthly_spending || []);
+      setPendingReceipts(receiptsData?.receipts || []);
+      setStatusDistribution(distributionData?.distribution || []);
     } catch (error: any) {
+      console.error('Dashboard load error:', error);
       toast({
         title: 'Error',
-        description: error.response?.data?.error || 'Failed to load dashboard data',
+        description: error.response?.data?.message || error.response?.data?.error || 'Failed to load dashboard data',
         variant: 'destructive',
       });
     } finally {

@@ -109,9 +109,9 @@ class SpendingAnalyticsView(APIView):
         # Apply date filters using core utility
         queryset = apply_date_range_filter(
             queryset,
+            'created_at',
             request.query_params.get('start_date'),
             request.query_params.get('end_date'),
-            date_field='created_at'
         )
 
         # Spending by vendor
