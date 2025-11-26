@@ -43,10 +43,10 @@ jobs:
       # Creates the .env file in both /root/app/backend/.env and /root/app/frontend/.env
       - name: Create .env files on server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} <<- 'EOF'
             
             # Define the contents of the .env file once using a HERE-DOCUMENT (EOV)
-            ENV_CONTENT=$(cat << 'EOV'
+            ENV_CONTENT=$(cat <<- 'EOV'
               DB_NAME=${{ secrets.DB_NAME }}
               DB_USER=${{ secrets.DB_USER }}
               DB_PASSWORD=${{ secrets.DB_PASSWORD }}
