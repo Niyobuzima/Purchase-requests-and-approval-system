@@ -15,6 +15,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db import transaction
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import Receipt
 from .serializers import ReceiptSerializer, ReceiptApprovalSerializer
@@ -27,6 +28,15 @@ from core.logging_utils import app_logger, log_view_action, audit_log
 from core.constants import AMOUNT_TOLERANCE_PERCENT, ErrorCode
 
 
+@extend_schema(tags=['Receipts'])
+@extend_schema_view(
+    list=extend_schema(description='List receipts'),
+    create=extend_schema(description='Upload a receipt for a purchase order'),
+    retrieve=extend_schema(description='Get receipt details'),
+    update=extend_schema(description='Update receipt'),
+    partial_update=extend_schema(description='Partially update receipt'),
+    destroy=extend_schema(description='Delete receipt'),
+)
 class ReceiptViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Receipt management

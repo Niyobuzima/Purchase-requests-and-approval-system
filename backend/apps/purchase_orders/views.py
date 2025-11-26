@@ -11,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import HttpResponse
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.purchase_orders.models import PurchaseOrder
 from apps.purchase_orders.serializers import PurchaseOrderSerializer, PurchaseOrderListSerializer
@@ -22,6 +23,11 @@ from core.responses import APIResponse
 from core.logging_utils import app_logger, log_view_action, audit_log
 
 
+@extend_schema(tags=['Purchase Orders'])
+@extend_schema_view(
+    list=extend_schema(description='List purchase orders'),
+    retrieve=extend_schema(description='Get purchase order details'),
+)
 class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Purchase Orders

@@ -1,6 +1,4 @@
-# ================================
-# 1. BUILDER STAGE (install deps with uv)
-# ================================
+#Builder stage
 FROM python:3.11-slim AS builder
 
 ENV PYTHONUNBUFFERED=1
@@ -39,9 +37,7 @@ RUN uv venv /app/.venv && \
         uvicorn[standard]==0.27.0 \
         gunicorn==21.2.0
 
-# ================================
-# 2. FINAL STAGE (small + fast)
-# ================================
+#Final Stage
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1

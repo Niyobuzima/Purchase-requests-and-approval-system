@@ -14,6 +14,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.cache import cache
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema, extend_schema_view
 import tempfile
 import os
 
@@ -39,6 +40,15 @@ from core.logging_utils import app_logger, log_view_action, audit_log
 from core.constants import TEMP_FILE_CACHE_TIMEOUT, ErrorCode
 
 
+@extend_schema(tags=['Purchase Requests'])
+@extend_schema_view(
+    list=extend_schema(description='List purchase requests filtered by user role'),
+    create=extend_schema(description='Create a new purchase request'),
+    retrieve=extend_schema(description='Get purchase request details'),
+    update=extend_schema(description='Update a purchase request (draft only)'),
+    partial_update=extend_schema(description='Partially update a purchase request'),
+    destroy=extend_schema(description='Delete a purchase request (draft only)'),
+)
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Purchase Requests

@@ -13,6 +13,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db.models import Sum, Count, Avg, Q
+from drf_spectacular.utils import extend_schema
 
 from apps.purchase_orders.models import PurchaseOrder
 from apps.receipts.models import Receipt
@@ -33,6 +34,7 @@ from core.logging_utils import app_logger, log_view_action, audit_log
 from core.constants import ErrorCode
 
 
+@extend_schema(tags=['Reports'])
 class ReportViewSet(viewsets.ViewSet):
     """
     ViewSet for generating and downloading reports

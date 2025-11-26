@@ -69,19 +69,60 @@ cp .env.example .env
 
 ```bash
 # Run migrations
-python manage.py migrate
+uv run python manage.py migrate
 
 # Create superuser
-python manage.py createsuperuser
+uv run python manage.py createsuperuser
 ```
 
 ### 6. Run Development Server
 
+The development server can be run using Django's built-in server or Uvicorn for an ASGI-compatible setup.
+
+**Using Django's `runserver`:**
 ```bash
-python manage.py runserver
+uv run python manage.py runserver
+```
+
+**Using `Uvicorn` (for ASGI):**
+
+This is recommended for development to better match the production environment.
+```bash
+uv run uvicorn backend.asgi:application --reload --port 8000
 ```
 
 API will be available at: http://localhost:8000/api
+
+---
+
+## Common Development Commands
+
+All `manage.py` commands should be executed via `uv run`.
+
+- **Create a new app:**
+  ```bash
+  uv run python manage.py startapp <app_name>
+  ```
+
+- **Create new migrations:**
+  ```bash
+  uv run python manage.py makemigrations
+  ```
+
+- **Apply migrations:**
+  ```bash
+  uv run python manage.py migrate
+  ```
+
+- **Open Django shell:**
+  ```bash
+  uv run python manage.py shell
+  ```
+
+- **Run tests:**
+  ```bash
+  uv run pytest
+  ```
 
 ---
 

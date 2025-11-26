@@ -121,5 +121,8 @@ python manage.py migrate --noinput || echo "Migration failed, continuing..."
 echo "Collecting static files..."
 python manage.py collectstatic --noinput || true
 
+echo "Running User Seeders for test..."
+python manage.py seed_users || echo "Seeding failed, continuing...."
+
 echo "Starting server..."
 exec "$@"
