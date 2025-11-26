@@ -193,6 +193,10 @@ export const PurchaseOrderDetailPage: React.FC = () => {
     );
   }
 
+  // Safely access request_details with fallbacks
+  const requestDetails = purchaseOrder.request_details;
+  const items = requestDetails?.items && Array.isArray(requestDetails.items) ? requestDetails.items : [];
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
@@ -210,7 +214,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">{purchaseOrder.po_number}</h1>
-              <p className="text-sm text-gray-500 mt-1">{purchaseOrder.request_details.title}</p>
+              <p className="text-sm text-gray-500 mt-1">{requestDetails?.title || 'Untitled Request'}</p>
             </div>
             <div className="flex space-x-3">
               <Button
@@ -249,28 +253,28 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                   <div>
                     <p className="text-sm text-gray-500">Vendor</p>
                     <p className="font-medium text-gray-900">
-                      {purchaseOrder.request_details.vendor_name || 'N/A'}
+                      {requestDetails?.vendor_name || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Total Amount</p>
                     <p className="text-xl font-semibold text-gray-900">
-                      {formatCurrency(purchaseOrder.request_details.total_amount)}
+                      {formatCurrency(requestDetails?.total_amount || 0)}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Status</p>
                     <div className="mt-1">
-                      {getStatusBadge(purchaseOrder.request_details.status)}
+                      {getStatusBadge(requestDetails?.status || 'UNKNOWN')}
                     </div>
                   </div>
                 </div>
 
-                {purchaseOrder.request_details.description && (
+                {requestDetails?.description && (
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Description</p>
                     <p className="text-gray-900">
-                      {purchaseOrder.request_details.description}
+                      {requestDetails?.description}
                     </p>
                   </div>
                 )}
@@ -282,12 +286,12 @@ export const PurchaseOrderDetailPage: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-lg font-medium">Items</CardTitle>
                 <CardDescription>
-                  {purchaseOrder.request_details.items.length} item(s) in this order
+                  {items.length} item(s) in this order
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {purchaseOrder.request_details.items.map((item, index) => (
+                  {items.map((item, index) => (
                     <div
                       key={item.id || index}
                       className="flex items-start justify-between p-4 border rounded-lg bg-white"
@@ -322,7 +326,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                 <div className="mt-4 pt-4 border-t flex justify-between items-center">
                   <span className="text-lg font-medium text-gray-700">Total Amount:</span>
                   <span className="text-2xl font-semibold text-gray-900">
-                    {formatCurrency(purchaseOrder.request_details.total_amount)}
+                    {formatCurrency(requestDetails?.total_amount || 0)}
                   </span>
                 </div>
               </CardContent>
@@ -408,14 +412,14 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-500">Total</p>
                   <p className="text-xl font-semibold text-gray-900">
-                    {formatCurrency(purchaseOrder.request_details.total_amount)}
+                    {formatCurrency(requestDetails?.total_amount || 0)}
                   </p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500">Items</p>
                   <p className="font-medium text-gray-900">
-                    {purchaseOrder.request_details.items.length} item(s)
+                    {items.length} item(s)
                   </p>
                 </div>
               </CardContent>
@@ -428,59 +432,59 @@ export const PurchaseOrderDetailPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {purchaseOrder.request_details.approved_l1_by && (
+                  {requestDetails?.approved_l1_by && (
                     <div className="border-l-2 border-emerald-400 pl-4">
                       <p className="text-sm font-medium text-gray-900">Level 1 Approved</p>
                       <p className="text-xs text-gray-500">
-                        by {purchaseOrder.request_details.approved_l1_by.first_name}{' '}
-                        {purchaseOrder.request_details.approved_l1_by.last_name}
+                        by {requestDetails.approved_l1_by.first_name}{' '}
+                        {requestDetails.approved_l1_by.last_name}
                       </p>
-                      {purchaseOrder.request_details.approved_l1_at && (
+                      {requestDetails?.approved_l1_at && (
                         <p className="text-xs text-gray-400">
-                          {formatDate(purchaseOrder.request_details.approved_l1_at)}
+                          {formatDate(requestDetails.approved_l1_at)}
                         </p>
                       )}
                     </div>
                   )}
 
-                  {purchaseOrder.request_details.approved_l2_by && (
+                  {requestDetails?.approved_l2_by && (
                     <div className="border-l-2 border-emerald-400 pl-4">
                       <p className="text-sm font-medium text-gray-900">Level 2 Approved</p>
                       <p className="text-xs text-gray-500">
-                        by {purchaseOrder.request_details.approved_l2_by.first_name}{' '}
-                        {purchaseOrder.request_details.approved_l2_by.last_name}
+                        by {requestDetails.approved_l2_by.first_name}{' '}
+                        {requestDetails.approved_l2_by.last_name}
                       </p>
-                      {purchaseOrder.request_details.approved_l2_at && (
+                      {requestDetails?.approved_l2_at && (
                         <p className="text-xs text-gray-400">
-                          {formatDate(purchaseOrder.request_details.approved_l2_at)}
+                          {formatDate(requestDetails.approved_l2_at)}
                         </p>
                       )}
                     </div>
                   )}
 
-                  {purchaseOrder.request_details.rejected_by && (
+                  {requestDetails?.rejected_by && (
                     <div className="border-l-2 border-red-400 pl-4">
                       <p className="text-sm font-medium text-gray-900">Rejected</p>
                       <p className="text-xs text-gray-500">
-                        by {purchaseOrder.request_details.rejected_by.first_name}{' '}
-                        {purchaseOrder.request_details.rejected_by.last_name}
+                        by {requestDetails.rejected_by.first_name}{' '}
+                        {requestDetails.rejected_by.last_name}
                       </p>
-                      {purchaseOrder.request_details.rejected_at && (
+                      {requestDetails?.rejected_at && (
                         <p className="text-xs text-gray-400">
-                          {formatDate(purchaseOrder.request_details.rejected_at)}
+                          {formatDate(requestDetails.rejected_at)}
                         </p>
                       )}
-                      {purchaseOrder.request_details.rejection_reason && (
+                      {requestDetails?.rejection_reason && (
                         <p className="text-xs text-gray-600 mt-1">
-                          {purchaseOrder.request_details.rejection_reason}
+                          {requestDetails.rejection_reason}
                         </p>
                       )}
                     </div>
                   )}
 
-                  {!purchaseOrder.request_details.approved_l1_by &&
-                   !purchaseOrder.request_details.approved_l2_by &&
-                   !purchaseOrder.request_details.rejected_by && (
+                  {!requestDetails?.approved_l1_by &&
+                   !requestDetails?.approved_l2_by &&
+                   !requestDetails?.rejected_by && (
                     <p className="text-sm text-gray-500">No approval actions yet</p>
                   )}
                 </div>

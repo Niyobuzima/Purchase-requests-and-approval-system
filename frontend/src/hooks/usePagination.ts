@@ -1,5 +1,5 @@
 import { useUrlFilters } from './useUrlFilters';
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 interface UsePaginationOptions {
   defaultPage?: number;
@@ -40,6 +40,19 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
       ? parsedPageSize
       : defaultPageSize;
 
+  // Use refs to avoid stale closure issues in callbacks
+  const currentPageRef = useRef(currentPage);
+  const pageSizeRef = useRef(pageSize);
+
+  // Keep refs in sync with current values
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
+
   const setPage = useCallback((page: number) => {
     // Validate and sanitize page input
     let sanitizedPage: number;
@@ -52,11 +65,12 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
       sanitizedPage = Math.max(1, Math.floor(page));
     }
 
-    // Only update if value has changed
-    if (sanitizedPage !== currentPage) {
+    // Always update - let the URL be the source of truth
+    // Using ref to get current value avoids stale closure
+    if (sanitizedPage !== currentPageRef.current) {
       setFilter('page', sanitizedPage.toString());
     }
-  }, [currentPage, defaultPage, setFilter]);
+  }, [defaultPage, setFilter]);
 
   const setPageSize = useCallback((size: number) => {
     // Validate and sanitize page size input
@@ -70,15 +84,15 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
       sanitizedSize = Math.max(1, Math.min(maxPageSize, Math.floor(size)));
     }
 
-    // Only update if value has changed
-    if (sanitizedSize !== pageSize) {
+    // Only update if value has changed (using ref for current value)
+    if (sanitizedSize !== pageSizeRef.current) {
       // Update both page_size and page atomically to prevent race conditions
       setFilters({
         page_size: sanitizedSize.toString(),
         page: '1', // Reset to first page when changing page size
       });
     }
-  }, [pageSize, defaultPageSize, maxPageSize, setFilters]);
+  }, [defaultPageSize, maxPageSize, setFilters]);
 
   return {
     currentPage,

@@ -35,12 +35,21 @@ export const ReceiptsListPage: React.FC = () => {
   // Debounce search term
   const debouncedSearch = useDebounce(searchTerm, 500);
 
-  // Reset to page 1 when search or status filter changes
+  // Track previous filter values to detect changes
+  const prevFiltersRef = React.useRef({ search: debouncedSearch, status: statusFilter });
+
+  // Reset to page 1 when search or status filter changes (not when page changes)
   useEffect(() => {
-    if (currentPage !== 1) {
-      setFilter('page', '1');
+    const prevFilters = prevFiltersRef.current;
+    const filtersChanged = prevFilters.search !== debouncedSearch || prevFilters.status !== statusFilter;
+
+    if (filtersChanged && currentPage !== 1) {
+      setPage(1);
     }
-  }, [debouncedSearch, statusFilter, currentPage, setFilter]);
+
+    // Update ref with current values
+    prevFiltersRef.current = { search: debouncedSearch, status: statusFilter };
+  }, [debouncedSearch, statusFilter, currentPage, setPage]);
 
   // Fetch receipts when filters change
   useEffect(() => {
@@ -55,9 +64,19 @@ export const ReceiptsListPage: React.FC = () => {
         };
 
         const response = await receiptsAPI.getAll(params);
-        setReceipts(response.results || []);
-        setTotalCount(response.count || 0);
-        setTotalPages(Math.ceil((response.count || 0) / pageSize));
+        const results = response.results || [];
+        const count = response.count || 0;
+        const calculatedTotalPages = Math.ceil(count / pageSize) || 1;
+
+        // If we got empty results but there are items, we're on an out-of-range page
+        if (results.length === 0 && count > 0 && currentPage > calculatedTotalPages) {
+          setPage(calculatedTotalPages);
+          return;
+        }
+
+        setReceipts(results);
+        setTotalCount(count);
+        setTotalPages(calculatedTotalPages);
       } catch (error: any) {
         // Handle 404 errors for invalid page numbers by resetting to page 1
         if (error?.response?.status === 404 && currentPage > 1) {

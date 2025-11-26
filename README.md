@@ -26,7 +26,7 @@ This system streamlines the procurement process from purchase request creation t
 - **PostgreSQL** - Database
 - **JWT** - Authentication (djangorestframework-simplejwt)
 - **Cloudinary** - File storage
-- **OpenAI GPT-4** - Document processing
+- **OpenAI GPT-5** - Document processing
 - **Docker** - Containerization
 
 ### Frontend
@@ -59,12 +59,18 @@ purchase-requests-and-approval-system/
 │       ├── api/             # API services
 │       ├── context/         # React context
 │       └── routes/          # Route configuration
-├── docs/
-│   └── implementation-plan/ # Detailed implementation guides
 ├── docker-compose.yml
 └── README.md
 ```
+## Live Demo
 
+> **Note:** The backend is hosted on Render's free tier, which spins down after 15 minutes of inactivity. The first request may take **30-60 seconds** while the server wakes up. Subsequent requests will be fast.
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://purchase-requests-and-approval-syst.vercel.app/ |
+| **Backend API** | https://purchase-requests-and-approval-system.onrender.com/ |
+| **API Docs (Swagger)** | https://purchase-requests-and-approval-system.onrender.com/api/docs/ |
 ## Quick Start
 
 ### Prerequisites
@@ -74,7 +80,7 @@ purchase-requests-and-approval-system/
 - Python 3.11+ (for local backend development)
 - Cloudinary account
 - OpenAI API key
-
+- Gemini API key
 ### Environment Setup
 
 1. **Clone the repository**
@@ -93,18 +99,29 @@ purchase-requests-and-approval-system/
    Edit `backend/.env`:
    ```env
    DEBUG=True
-   SECRET_KEY=your-secret-key-here
-   DB_NAME=p2p_db
+   SECRET_KEY=your-secret-key-here-generate-with-django
+   ALLOWED_HOSTS=localhost,127.0.0.1
+   DB_NAME=DB-NAME
    DB_USER=postgres
-   DB_PASSWORD=postgres
-   DB_HOST=db
-   DB_PORT=5432
-   CLOUDINARY_CLOUD_NAME=your-cloud-name
-   CLOUDINARY_API_KEY=your-api-key
-   CLOUDINARY_API_SECRET=your-api-secret
-   OPENAI_API_KEY=sk-your-openai-key
-   OPENAI_MODEL=gpt-4-turbo-preview
-   CORS_ALLOWED_ORIGINS=http://localhost:5173
+   DB_PASSWORD=DB-PASSORD
+   DB_HOST=DB-HOST
+   DB_PORT=DB-PORT
+   CLOUDINARY_CLOUD_NAME=dq-cloudinary-name
+   CLOUDINARY_API_KEY=your-cloudinary-api-key
+   CLOUDINARY_API_SECRET=your-cloudinary-secret-key
+   OPENAI_API_KEY=sk-your-OPENAI-key
+   OPENAI_MODEL=gpt-5
+   GEMINI_API_KEY=AI-your-gemini-key
+   CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+   JWT_ACCESS_TOKEN_LIFETIME=60
+   JWT_REFRESH_TOKEN_LIFETIME=1440
+   EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USE_TLS=True
+   EMAIL_HOST_USER=your@email.com
+   EMAIL_HOST_PASSWORD=google-app-password
+   FRONTEND_URL=http://localhost:5173
    ```
 
    Frontend (`.env.local`):
@@ -135,61 +152,35 @@ purchase-requests-and-approval-system/
    docker-compose exec backend python manage.py createsuperuser
    ```
 
-6. **Access the application**
+6. **Seed test users (optional)**
+
+   ```bash
+   docker-compose exec backend python manage.py seed_users
+   ```
+
+7. **Access the application**
 
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8000/api
+   - **API Documentation (Swagger)**: http://localhost:8000/api/docs/
+   - **API Documentation (ReDoc)**: http://localhost:8000/api/redoc/
    - Admin Panel: http://localhost:8000/admin
 
-### Create Demo Users
+### Test Users
 
+Run `python manage.py seed_users` to create these test users:
+
+| Email | Role | Password |
+|-------|------|----------|
+| admin@test.com | Administrator | Test@123 |
+| approver1@test.com | Approver Level 1 | Test@123 |
+| approver2@test.com | Approver Level 2 | Test@123 |
+| finance@test.com | Finance | Test@123 |
+| staff@test.com | Staff | Test@123 |
+
+You can also customize the password:
 ```bash
-docker-compose exec backend python manage.py shell
-```
-
-```python
-from django.contrib.auth import get_user_model
-User = get_user_model()
-
-# Staff user
-User.objects.create_user(
-    username='staff',
-    email='staff@demo.com',
-    password='Demo1234!',
-    role='STAFF',
-    first_name='John',
-    last_name='Staff'
-)
-
-# Level 1 Approver
-User.objects.create_user(
-    username='approver1',
-    email='approver1@demo.com',
-    password='Demo1234!',
-    role='APPROVER_L1',
-    first_name='Jane',
-    last_name='Approver'
-)
-
-# Level 2 Approver
-User.objects.create_user(
-    username='approver2',
-    email='approver2@demo.com',
-    password='Demo1234!',
-    role='APPROVER_L2',
-    first_name='Bob',
-    last_name='Senior'
-)
-
-# Finance user
-User.objects.create_user(
-    username='finance',
-    email='finance@demo.com',
-    password='Demo1234!',
-    role='FINANCE',
-    first_name='Alice',
-    last_name='Finance'
-)
+python manage.py seed_users --password MyCustomPassword123
 ```
 
 ## Usage Guide
@@ -347,37 +338,6 @@ GET /api/purchase-orders/{id}/download/
 Authorization: Bearer <access_token>
 ```
 
-For complete API documentation, see [docs/implementation-plan/](docs/implementation-plan/)
-
-## Testing
-
-### Backend Tests
-
-```bash
-# Run all tests
-docker-compose exec backend pytest
-
-# With coverage
-docker-compose exec backend pytest --cov=apps --cov-report=html
-
-# Run specific test
-docker-compose exec backend pytest apps/requests/tests/test_models.py
-```
-
-### Frontend Tests
-
-```bash
-cd frontend
-npm test
-
-# With coverage
-npm test -- --coverage
-```
-
-## Deployment
-
-See [docs/implementation-plan/10-DEPLOYMENT-GUIDE.md](docs/implementation-plan/10-DEPLOYMENT-GUIDE.md) for detailed deployment instructions.
-
 ### Quick Deploy to Render.com
 
 1. Push code to GitHub
@@ -388,8 +348,6 @@ See [docs/implementation-plan/10-DEPLOYMENT-GUIDE.md](docs/implementation-plan/1
 6. Configure environment variables
 7. Deploy!
 
-Production URL: https://your-app.onrender.com
-
 ## Development Guide
 
 ### Backend Development
@@ -397,22 +355,28 @@ Production URL: https://your-app.onrender.com
 ```bash
 # Install dependencies
 cd backend
-pip install -r requirements.txt
+uv sync
 
 # Create new app
-python manage.py startapp app_name
+uv run python manage.py startapp app_name
 
 # Make migrations
-python manage.py makemigrations
+uv run python manage.py makemigrations
 
 # Apply migrations
-python manage.py migrate
+uv run python manage.py migrate
 
-# Run development server
-python manage.py runserver
+# Run development server (WSGI)
+uv run python manage.py runserver
+
+# Run development server (ASGI - recommended)
+uv run uvicorn backend.asgi:application --reload --port 8000
+
+# Collect static files (required for Swagger UI with uvicorn)
+uv run python manage.py collectstatic --noinput
 
 # Django shell
-python manage.py shell
+uv run python manage.py shell
 ```
 
 ### Frontend Development
@@ -450,37 +414,6 @@ docker-compose up -d
 docker-compose exec backend python manage.py migrate
 ```
 
-## Implementation Timeline
-
-| Day | Focus | Deliverables |
-|-----|-------|--------------|
-| 1 | Setup + Auth | Project structure, JWT auth, Docker |
-| 2 | Purchase Requests | CRUD operations, file upload, AI processing |
-| 3 | Approval Workflow | Multi-level approvals, concurrency safety |
-| 4 | PO Generation | Auto-generation, PDF creation |
-| 5 | Receipt Validation | Upload, AI comparison, discrepancies |
-| 6 | Finance Dashboard | Analytics, reports, exports |
-| 7-8 | Search & Polish | Filters, pagination, UI improvements |
-| 9 | Testing | Unit tests, integration tests, E2E |
-| 10 | Deployment | Production deploy, documentation |
-
-For detailed implementation steps, see [docs/implementation-plan/01-SPRINT-PLAN.md](docs/implementation-plan/01-SPRINT-PLAN.md)
-
-## Documentation
-
-All implementation documentation is available in the `docs/implementation-plan/` directory:
-
-1. [01-SPRINT-PLAN.md](docs/implementation-plan/01-SPRINT-PLAN.md) - Day-by-day implementation guide
-2. [02-MONOREPO-STRUCTURE.md](docs/implementation-plan/02-MONOREPO-STRUCTURE.md) - Project structure
-3. [03-DJANGO-MODELS.md](docs/implementation-plan/03-DJANGO-MODELS.md) - Database models
-4. [04-DJANGO-SERIALIZERS.md](docs/implementation-plan/04-DJANGO-SERIALIZERS.md) - API serializers
-5. [05-DJANGO-VIEWS.md](docs/implementation-plan/05-DJANGO-VIEWS.md) - API endpoints
-6. [06-DOCKER-CONFIG.md](docs/implementation-plan/06-DOCKER-CONFIG.md) - Docker setup
-7. [07-FRONTEND-IMPLEMENTATION.md](docs/implementation-plan/07-FRONTEND-IMPLEMENTATION.md) - React components
-8. [08-FEATURE-BY-FEATURE.md](docs/implementation-plan/08-FEATURE-BY-FEATURE.md) - Feature implementation
-9. [09-TESTING-STRATEGY.md](docs/implementation-plan/09-TESTING-STRATEGY.md) - Testing guide
-10. [10-DEPLOYMENT-GUIDE.md](docs/implementation-plan/10-DEPLOYMENT-GUIDE.md) - Production deployment
-
 ## Troubleshooting
 
 ### Common Issues
@@ -503,15 +436,6 @@ docker-compose logs db
 - Verify Cloudinary credentials
 - Check file size (max 10MB)
 - Ensure PDF format
-
-**Tests Failing**
-```bash
-# Reset test database
-docker-compose exec backend pytest --create-db
-
-# Run with verbose output
-docker-compose exec backend pytest -v
-```
 
 ## Contributing
 
@@ -538,16 +462,12 @@ This project is licensed under the MIT License.
 
 For issues and questions:
 - Create an issue in the repository
-- Check documentation in `docs/implementation-plan/`
 - Review API documentation
 
 ## Acknowledgments
 
 - Django REST Framework team
 - React team
-- OpenAI for GPT-4 API
+- OpenAI for GPT-5  Response 
+- GEMINI Documentation
 - Cloudinary for file storage
-
----
-
-**Built with ❤️ for IST Africa**

@@ -78,9 +78,20 @@ const RequestsListPage: React.FC = () => {
 
       // Handle paginated response
       if (response && typeof response === 'object' && 'results' in response) {
-        setRequests(response.results || []);
-        setTotalCount(response.count || 0);
-        setTotalPages(Math.ceil((response.count || 0) / pageSize));
+        const results = response.results || [];
+        const count = response.count || 0;
+        const calculatedTotalPages = Math.ceil(count / pageSize) || 1;
+
+        // If we got empty results but there are items, we're on an out-of-range page
+        // Reset to the last valid page
+        if (results.length === 0 && count > 0 && currentPage > calculatedTotalPages) {
+          setPage(calculatedTotalPages);
+          return; // Will re-fetch with correct page
+        }
+
+        setRequests(results);
+        setTotalCount(count);
+        setTotalPages(calculatedTotalPages);
       } else {
         const requestsArray = Array.isArray(response) ? response : [];
         setRequests(requestsArray as PurchaseRequestListItem[]);

@@ -27,9 +27,30 @@ export interface AppError {
 }
 
 export interface APIErrorResponse {
+  // New unified response format
+  success?: boolean;
+  message?: string;
+  code?: string;
+  errors?: Record<string, string[]>;
+  // Legacy format fields (for backwards compatibility)
   error?: string;
   detail?: string;
-  message?: string;
   non_field_errors?: string[];
   [key: string]: any; // For field-specific errors
+}
+
+/**
+ * Unified API Response format from backend
+ */
+export interface UnifiedAPIResponse<T = any> {
+  success: boolean;
+  message: string;
+  data?: T;
+  code?: string;
+  errors?: Record<string, string[]>;
+  // Pagination fields (when applicable)
+  count?: number;
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
 }
