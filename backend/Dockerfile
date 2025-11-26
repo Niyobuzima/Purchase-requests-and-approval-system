@@ -61,9 +61,10 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY . /app/
 
-# Create directories and set permissions
-RUN mkdir -p /app/staticfiles /app/media && \
-    chmod +x /app/docker-entrypoint.sh
+# Create directories, set permissions, and collect static files during build
+RUN mkdir -p /app/staticfiles /app/media /app/logs && \
+    chmod +x /app/docker-entrypoint.sh && \
+    python manage.py collectstatic --noinput --clear
 
 EXPOSE 8000
 
