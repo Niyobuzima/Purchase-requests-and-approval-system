@@ -14,6 +14,7 @@ from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from datetime import timedelta
+from drf_spectacular.utils import extend_schema
 
 from apps.purchase_requests.models import PurchaseRequest
 from apps.purchase_orders.models import PurchaseOrder
@@ -25,6 +26,7 @@ from core.responses import APIResponse
 from core.filters import apply_date_range_filter
 
 
+@extend_schema(tags=['Analytics'])
 class DashboardStatsView(APIView):
     """
     Finance Dashboard Summary Statistics
@@ -79,6 +81,7 @@ class DashboardStatsView(APIView):
         })
 
 
+@extend_schema(tags=['Analytics'])
 class SpendingAnalyticsView(APIView):
     """
     Spending Analytics
@@ -156,6 +159,7 @@ class SpendingAnalyticsView(APIView):
         })
 
 
+@extend_schema(tags=['Analytics'])
 class PendingReceiptsView(APIView):
     """
     Get all receipts pending Finance review
@@ -195,6 +199,7 @@ class PendingReceiptsView(APIView):
         })
 
 
+@extend_schema(tags=['Analytics'])
 class RequestStatusDistributionView(APIView):
     """
     Get distribution of purchase requests by status

@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.approvals.models import Approval
 from apps.approvals.serializers import ApprovalSerializer, ApprovalActionSerializer
@@ -25,6 +26,11 @@ from core.logging_utils import app_logger, log_view_action, audit_log
 from core.constants import ErrorCode
 
 
+@extend_schema(tags=['Approvals'])
+@extend_schema_view(
+    list=extend_schema(description='List pending approvals for current user'),
+    retrieve=extend_schema(description='Get approval details'),
+)
 class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for managing approvals"""
 

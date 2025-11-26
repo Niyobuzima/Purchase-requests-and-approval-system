@@ -29,6 +29,8 @@ INSTALLED_APPS = [
     'django_filters',
     'cloudinary_storage',
     'cloudinary',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 
     # Local apps
     'apps.users',
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files with uvicorn/gunicorn
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -126,6 +129,24 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = []
+
+# Ensure Django finds static files from installed apps (like drf_spectacular_sidecar)
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+
+# WhiteNoise settings for serving static files with uvicorn/gunicorn
+# Django 4.2+ uses STORAGES instead of STATICFILES_STORAGE and DEFAULT_FILE_STORAGE
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -146,6 +167,58 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     # Custom exception handler for unified error responses
     'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
+    # OpenAPI schema generation
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# DRF Spectacular Settings (Swagger/OpenAPI)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'ProcureFlow API',
+    'DESCRIPTION': '''
+## Purchase Request & Approval System API
+
+A comprehensive procure-to-pay system for managing purchase requests, approvals, purchase orders, and receipts.
+
+### Features
+- **Authentication**: JWT-based authentication with token refresh
+- **Purchase Requests**: Create, update, and track purchase requests with AI-powered document extraction
+- **Approvals**: Multi-level approval workflow (L1 → L2 → Finance)
+- **Purchase Orders**: Generate and manage purchase orders
+- **Receipts**: Upload and validate receipt documents
+- **Analytics**: Dashboard statistics and spending analytics
+- **Reports**: Generate and export reports in multiple formats
+- **Notifications**: Real-time notification system
+
+### Authentication
+All endpoints (except login/register) require a valid JWT token in the Authorization header:
+```
+Authorization: Bearer <your_access_token>
+```
+    ''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User authentication and registration'},
+        {'name': 'Users', 'description': 'User profile and management'},
+        {'name': 'Admin', 'description': 'Admin user management and dashboard'},
+        {'name': 'Purchase Requests', 'description': 'Create and manage purchase requests'},
+        {'name': 'Approvals', 'description': 'Approval workflow management'},
+        {'name': 'Purchase Orders', 'description': 'Purchase order generation and management'},
+        {'name': 'Receipts', 'description': 'Receipt upload and validation'},
+        {'name': 'Analytics', 'description': 'Dashboard statistics and spending analytics'},
+        {'name': 'Reports', 'description': 'Report generation and export'},
+        {'name': 'Notifications', 'description': 'User notifications'},
+    ],
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': False,
+        'filter': True,
+    },
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
 }
 
 # JWT Settings
@@ -184,8 +257,7 @@ cloudinary.config(
     secure=True  # Force HTTPS URLs
 )
 
-# Media Files Storage (Cloudinary)
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Media Files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 

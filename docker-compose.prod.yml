@@ -66,6 +66,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    command: uv run uvicorn backend.asgi:application --host 0.0.0.0 --port 8000 --workers 2
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     env_file:
@@ -83,7 +84,7 @@ services:
       - media_files:/app/media
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/admin/login/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -16,6 +16,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 from django.db.models import Count, Q
 from django_filters import rest_framework as filters
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.users.serializers import (
     UserSerializer,
@@ -36,6 +37,7 @@ from core.constants import ErrorCode
 User = get_user_model()
 
 
+@extend_schema(tags=['Authentication'])
 class RegisterView(generics.CreateAPIView):
     """User registration endpoint"""
 
@@ -78,6 +80,7 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
+@extend_schema(tags=['Authentication'])
 class LoginView(generics.GenericAPIView):
     """User login endpoint"""
 
@@ -129,6 +132,11 @@ class LoginView(generics.GenericAPIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(tags=['Users']),
+    put=extend_schema(tags=['Users']),
+    patch=extend_schema(tags=['Users']),
+)
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """Get/Update user profile"""
 
@@ -139,6 +147,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+@extend_schema(tags=['Users'])
 class ChangePasswordView(generics.UpdateAPIView):
     """Change user password"""
 
@@ -179,6 +188,7 @@ class ChangePasswordView(generics.UpdateAPIView):
         return APIResponse.success(message="Password updated successfully")
 
 
+@extend_schema(tags=['Authentication'])
 class LogoutView(generics.GenericAPIView):
     """Logout endpoint - blacklist refresh token"""
 
@@ -254,6 +264,10 @@ class UserFilter(filters.FilterSet):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(tags=['Admin']),
+    post=extend_schema(tags=['Admin']),
+)
 class AdminUserListView(generics.ListCreateAPIView):
     """Admin view to list all users and create new users"""
 
@@ -299,6 +313,12 @@ class AdminUserListView(generics.ListCreateAPIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(tags=['Admin']),
+    put=extend_schema(tags=['Admin']),
+    patch=extend_schema(tags=['Admin']),
+    delete=extend_schema(tags=['Admin']),
+)
 class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Admin view to get, update, or delete a single user"""
 
@@ -396,6 +416,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
+@extend_schema(tags=['Admin'])
 class AdminDashboardStatsView(APIView):
     """Admin dashboard statistics"""
 
