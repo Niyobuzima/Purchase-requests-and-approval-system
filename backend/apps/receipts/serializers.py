@@ -1,19 +1,36 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Receipt
-from apps.purchase_orders.models import PurchaseOrder
-from apps.purchase_orders.serializers import PurchaseOrderSerializer
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
-    """Serializer for Receipt model"""
+    """
+    Serializer for Receipt model.
+    Optimized to avoid N+1 queries - uses flat fields instead of nested serializers.
+    """
 
-    purchase_order_details = PurchaseOrderSerializer(source='purchase_order', read_only=True)
-    purchase_order_number = serializers.SerializerMethodField()
-    request_title = serializers.SerializerMethodField()
-    total_amount = serializers.SerializerMethodField()
+    # Flat PO fields (avoids N+1)
+    purchase_order_number = serializers.CharField(source='purchase_order.po_number', read_only=True)
+    po_pdf_file = serializers.CharField(source='purchase_order.pdf_file', read_only=True)
+
+    # Flat request fields (avoids N+1)
+    request_id = serializers.IntegerField(source='purchase_order.request.id', read_only=True)
+    request_title = serializers.CharField(source='purchase_order.request.title', read_only=True)
+    request_vendor = serializers.CharField(source='purchase_order.request.vendor_name', read_only=True)
+    request_total = serializers.DecimalField(
+        source='purchase_order.request.total_amount',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    # User names
     uploaded_by_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
+
+    # Computed fields
     receipt_url = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
     validation_status_display = serializers.CharField(source='get_validation_status_display', read_only=True)
 
     class Meta:
@@ -22,8 +39,11 @@ class ReceiptSerializer(serializers.ModelSerializer):
             'id',
             'purchase_order',
             'purchase_order_number',
-            'purchase_order_details',
+            'po_pdf_file',
+            'request_id',
             'request_title',
+            'request_vendor',
+            'request_total',
             'total_amount',
             'receipt_file',
             'receipt_url',
@@ -49,19 +69,24 @@ class ReceiptSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
-    def get_purchase_order_number(self, obj):
-        """Get the purchase order number"""
-        if obj.purchase_order:
-            return obj.purchase_order.po_number
+    @extend_schema_field(str)
+    def get_uploaded_by_name(self, obj) -> str:
+        if obj.uploaded_by:
+            return f"{obj.uploaded_by.first_name} {obj.uploaded_by.last_name}".strip() or obj.uploaded_by.username
         return None
 
-    def get_request_title(self, obj):
-        """Get the associated request title"""
-        if obj.purchase_order and obj.purchase_order.request:
-            return obj.purchase_order.request.title
+    @extend_schema_field(str)
+    def get_approved_by_name(self, obj) -> str:
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
         return None
 
-    def get_total_amount(self, obj):
+    @extend_schema_field(str)
+    def get_receipt_url(self, obj) -> str:
+        return obj.receipt_url
+
+    @extend_schema_field(float)
+    def get_total_amount(self, obj) -> float:
         """Get total amount from extracted receipt data or purchase order"""
         # First try to get from extracted receipt data
         if obj.extracted_receipt_data and 'total_amount' in obj.extracted_receipt_data:
@@ -72,22 +97,9 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
         # Fallback to purchase order total
         if obj.purchase_order and obj.purchase_order.request:
-            return float(obj.purchase_order.request.total_estimated_cost)
+            return float(obj.purchase_order.request.total_amount)
 
         return None
-
-    def get_uploaded_by_name(self, obj):
-        if obj.uploaded_by:
-            return f"{obj.uploaded_by.first_name} {obj.uploaded_by.last_name}".strip() or obj.uploaded_by.username
-        return None
-
-    def get_approved_by_name(self, obj):
-        if obj.approved_by:
-            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip() or obj.approved_by.username
-        return None
-
-    def get_receipt_url(self, obj):
-        return obj.receipt_url
 
     def validate_purchase_order(self, value):
         """Validate that the purchase order exists and is approved"""
@@ -121,6 +133,41 @@ class ReceiptSerializer(serializers.ModelSerializer):
                 )
 
         return value
+
+
+class ReceiptListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for list views"""
+
+    purchase_order_number = serializers.CharField(source='purchase_order.po_number', read_only=True)
+    request_title = serializers.CharField(source='purchase_order.request.title', read_only=True)
+    request_total = serializers.DecimalField(
+        source='purchase_order.request.total_amount',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    uploaded_by_name = serializers.SerializerMethodField()
+    validation_status_display = serializers.CharField(source='get_validation_status_display', read_only=True)
+
+    class Meta:
+        model = Receipt
+        fields = [
+            'id',
+            'purchase_order',
+            'purchase_order_number',
+            'request_title',
+            'request_total',
+            'receipt_file',
+            'uploaded_by_name',
+            'uploaded_at',
+            'validation_status',
+            'validation_status_display',
+        ]
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return f"{obj.uploaded_by.first_name} {obj.uploaded_by.last_name}".strip() or obj.uploaded_by.username
+        return None
 
 
 class ReceiptApprovalSerializer(serializers.Serializer):

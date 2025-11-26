@@ -11,7 +11,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q, Case, When, IntegerField
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
@@ -69,8 +69,15 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def pending(self, request):
-        """Get all pending approvals for the current user's level"""
+        """Get all pending approvals for the current user's level (paginated)"""
         queryset = self.get_queryset()
+
+        # Use pagination
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return APIResponse.success(data=serializer.data)
 
@@ -254,58 +261,52 @@ class ApprovalViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_approvals(self, request):
-        """Get all approvals processed by the current user"""
+        """Get all approvals processed by the current user (paginated)"""
         approvals = Approval.objects.filter(
             approver=request.user
         ).select_related('request', 'request__requester').order_by('-updated_at')
+
+        # Use pagination
+        page = self.paginate_queryset(approvals)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(approvals, many=True)
         return APIResponse.success(data=serializer.data)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Get approval statistics for the current approver"""
+        """
+        Get approval statistics for the current approver.
+        Optimized: Uses 2 queries instead of 5 (pending stats + user stats).
+        """
         user = request.user
         level = Approval.Level.LEVEL_1 if user.role == 'APPROVER_L1' else Approval.Level.LEVEL_2
+        today = timezone.now().date()
 
-        # Pending approvals for this level
-        pending_count = Approval.objects.filter(
-            level=level,
-            status=Approval.Status.PENDING
-        ).count()
-
-        # Total pending amount using aggregation (optimized - no N+1)
-        pending_amount = Approval.objects.filter(
+        # Query 1: Pending approvals for this level (count + amount)
+        pending_stats = Approval.objects.filter(
             level=level,
             status=Approval.Status.PENDING
         ).aggregate(
-            total=Sum('request__total_amount')
-        )['total'] or 0
+            pending_count=Count('id'),
+            pending_amount=Sum('request__total_amount')
+        )
 
-        # Approvals processed by this user
-        my_approved = Approval.objects.filter(
-            approver=user,
-            status=Approval.Status.APPROVED
-        ).count()
-
-        my_rejected = Approval.objects.filter(
-            approver=user,
-            status=Approval.Status.REJECTED
-        ).count()
-
-        # Today's processed
-        today = timezone.now().date()
-        today_processed = Approval.objects.filter(
-            approver=user,
-            processed_at__date=today
-        ).count()
+        # Query 2: User's approval stats (approved, rejected, today's processed)
+        user_stats = Approval.objects.filter(approver=user).aggregate(
+            my_approved=Count('id', filter=Q(status=Approval.Status.APPROVED)),
+            my_rejected=Count('id', filter=Q(status=Approval.Status.REJECTED)),
+            today_processed=Count('id', filter=Q(processed_at__date=today))
+        )
 
         return APIResponse.success(data={
-            'pending_count': pending_count,
-            'pending_amount': float(pending_amount),
-            'my_approved': my_approved,
-            'my_rejected': my_rejected,
-            'today_processed': today_processed,
+            'pending_count': pending_stats['pending_count'] or 0,
+            'pending_amount': float(pending_stats['pending_amount'] or 0),
+            'my_approved': user_stats['my_approved'] or 0,
+            'my_rejected': user_stats['my_rejected'] or 0,
+            'today_processed': user_stats['today_processed'] or 0,
             'level': level,
             'level_display': 'Level 1' if level == 1 else 'Level 2',
         })

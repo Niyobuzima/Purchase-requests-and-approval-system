@@ -18,7 +18,7 @@ from django.db import transaction
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import Receipt
-from .serializers import ReceiptSerializer, ReceiptApprovalSerializer
+from .serializers import ReceiptSerializer, ReceiptListSerializer, ReceiptApprovalSerializer
 from .filters import ReceiptFilter
 from utils.ai_processor import get_document_processor
 
@@ -54,6 +54,7 @@ class ReceiptViewSet(viewsets.ModelViewSet):
     queryset = Receipt.objects.all().select_related(
         'purchase_order',
         'purchase_order__request',
+        'purchase_order__request__requester',
         'uploaded_by',
         'approved_by'
     )
@@ -64,6 +65,12 @@ class ReceiptViewSet(viewsets.ModelViewSet):
     filterset_class = ReceiptFilter
     ordering_fields = ['uploaded_at', 'approved_at', 'validation_status']
     ordering = ['-uploaded_at']
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list views"""
+        if self.action == 'list':
+            return ReceiptListSerializer
+        return ReceiptSerializer
 
     def get_queryset(self):
         """Filter receipts based on user role and query params"""

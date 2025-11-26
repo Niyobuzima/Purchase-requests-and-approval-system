@@ -17,34 +17,38 @@ export function useUrlFilters() {
     return params;
   }, [searchParams]);
 
-  // Update a single filter
+  // Update a single filter - uses functional update to avoid stale closure
   const setFilter = useCallback(
     (key: string, value: string | null) => {
-      const newParams = new URLSearchParams(searchParams);
-      if (value === null || value === '') {
-        newParams.delete(key);
-      } else {
-        newParams.set(key, value);
-      }
-      setSearchParams(newParams);
-    },
-    [searchParams, setSearchParams]
-  );
-
-  // Update multiple filters at once
-  const setFilters = useCallback(
-    (updates: Record<string, string | null>) => {
-      const newParams = new URLSearchParams(searchParams);
-      Object.entries(updates).forEach(([key, value]) => {
+      setSearchParams((prevParams) => {
+        const newParams = new URLSearchParams(prevParams);
         if (value === null || value === '') {
           newParams.delete(key);
         } else {
           newParams.set(key, value);
         }
+        return newParams;
       });
-      setSearchParams(newParams);
     },
-    [searchParams, setSearchParams]
+    [setSearchParams]
+  );
+
+  // Update multiple filters at once - uses functional update to avoid stale closure
+  const setFilters = useCallback(
+    (updates: Record<string, string | null>) => {
+      setSearchParams((prevParams) => {
+        const newParams = new URLSearchParams(prevParams);
+        Object.entries(updates).forEach(([key, value]) => {
+          if (value === null || value === '') {
+            newParams.delete(key);
+          } else {
+            newParams.set(key, value);
+          }
+        });
+        return newParams;
+      });
+    },
+    [setSearchParams]
   );
 
   // Clear all filters

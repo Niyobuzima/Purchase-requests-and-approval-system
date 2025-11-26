@@ -163,7 +163,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
         'rest_framework.filters.SearchFilter',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.SafePageNumberPagination',
     'PAGE_SIZE': 20,
     # Custom exception handler for unified error responses
     'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',

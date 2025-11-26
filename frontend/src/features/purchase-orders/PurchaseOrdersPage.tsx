@@ -53,9 +53,19 @@ export const PurchaseOrdersPage: React.FC = () => {
         };
 
         const response = await purchaseOrdersAPI.getAll(params);
-        setPurchaseOrders(response.results || []);
-        setTotalCount(response.count || 0);
-        setTotalPages(Math.ceil((response.count || 0) / pageSize));
+        const results = response.results || [];
+        const count = response.count || 0;
+        const calculatedTotalPages = Math.ceil(count / pageSize) || 1;
+
+        // If we got empty results but there are items, we're on an out-of-range page
+        if (results.length === 0 && count > 0 && currentPage > calculatedTotalPages) {
+          setPage(calculatedTotalPages);
+          return;
+        }
+
+        setPurchaseOrders(results);
+        setTotalCount(count);
+        setTotalPages(calculatedTotalPages);
       } catch (err: any) {
         // Handle 404 errors for invalid page numbers by resetting to page 1
         if (err?.response?.status === 404 && currentPage > 1) {
