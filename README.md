@@ -62,7 +62,15 @@ purchase-requests-and-approval-system/
 ├── docker-compose.yml
 └── README.md
 ```
+## Live Demo
 
+> **Note:** The backend is hosted on Render's free tier, which spins down after 15 minutes of inactivity. The first request may take **30-60 seconds** while the server wakes up. Subsequent requests will be fast.
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://purchase-requests-and-approval-syst.vercel.app/ |
+| **Backend API** | https://purchase-requests-and-approval-system.onrender.com/ |
+| **API Docs (Swagger)** | https://purchase-requests-and-approval-system.onrender.com/api/docs/ |
 ## Quick Start
 
 ### Prerequisites
@@ -330,32 +338,6 @@ GET /api/purchase-orders/{id}/download/
 Authorization: Bearer <access_token>
 ```
 
-
-## Testing
-
-### Backend Tests
-
-```bash
-# Run all tests
-docker-compose exec backend pytest
-
-# With coverage
-docker-compose exec backend pytest --cov=apps --cov-report=html
-
-# Run specific test
-docker-compose exec backend pytest apps/requests/tests/test_models.py
-```
-
-### Frontend Tests
-
-```bash
-cd frontend
-npm test
-
-# With coverage
-npm test -- --coverage
-```
-
 ### Quick Deploy to Render.com
 
 1. Push code to GitHub
@@ -366,8 +348,6 @@ npm test -- --coverage
 6. Configure environment variables
 7. Deploy!
 
-Production URL: https://your-app.onrender.com
-
 ## Development Guide
 
 ### Backend Development
@@ -375,22 +355,28 @@ Production URL: https://your-app.onrender.com
 ```bash
 # Install dependencies
 cd backend
-pip install -r requirements.txt
+uv sync
 
 # Create new app
-python manage.py startapp app_name
+uv run python manage.py startapp app_name
 
 # Make migrations
-python manage.py makemigrations
+uv run python manage.py makemigrations
 
 # Apply migrations
-python manage.py migrate
+uv run python manage.py migrate
 
-# Run development server
-python manage.py runserver
+# Run development server (WSGI)
+uv run python manage.py runserver
+
+# Run development server (ASGI - recommended)
+uv run uvicorn backend.asgi:application --reload --port 8000
+
+# Collect static files (required for Swagger UI with uvicorn)
+uv run python manage.py collectstatic --noinput
 
 # Django shell
-python manage.py shell
+uv run python manage.py shell
 ```
 
 ### Frontend Development
@@ -450,15 +436,6 @@ docker-compose logs db
 - Verify Cloudinary credentials
 - Check file size (max 10MB)
 - Ensure PDF format
-
-**Tests Failing**
-```bash
-# Reset test database
-docker-compose exec backend pytest --create-db
-
-# Run with verbose output
-docker-compose exec backend pytest -v
-```
 
 ## Contributing
 
