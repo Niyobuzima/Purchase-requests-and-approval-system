@@ -49,7 +49,13 @@ export const analyticsAPI = {
    */
   getDashboardStats: async (): Promise<{ stats: DashboardStats }> => {
     const response = await axios.get('/analytics/dashboard/stats/');
-    return response.data;
+    // Handle both wrapped and unwrapped responses
+    const data = response.data;
+    if (data?.stats) {
+      return data;
+    }
+    // If stats are at root level, wrap them
+    return { stats: data };
   },
 
   /**
@@ -71,7 +77,13 @@ export const analyticsAPI = {
     count: number;
   }> => {
     const response = await axios.get('/analytics/receipts/pending/');
-    return response.data;
+    const data = response.data;
+    // Handle both wrapped and unwrapped responses
+    if (data?.receipts) {
+      return data;
+    }
+    // If receipts array is at root level or missing
+    return { receipts: Array.isArray(data) ? data : [], count: 0 };
   },
 
   /**
@@ -81,6 +93,12 @@ export const analyticsAPI = {
     distribution: RequestStatusDistribution[];
   }> => {
     const response = await axios.get('/analytics/requests/status-distribution/');
-    return response.data;
+    const data = response.data;
+    // Handle both wrapped and unwrapped responses
+    if (data?.distribution) {
+      return data;
+    }
+    // If distribution array is at root level or missing
+    return { distribution: Array.isArray(data) ? data : [] };
   },
 };

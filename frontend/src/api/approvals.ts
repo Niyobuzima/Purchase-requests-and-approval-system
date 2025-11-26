@@ -43,13 +43,15 @@ export const approvalsAPI = {
   // Get all pending approvals for current user
   pending: async (): Promise<Approval[]> => {
     const response = await api.get('/approvals/pending/');
-    return response.data;
+    // Handle paginated response - extract results array
+    return Array.isArray(response.data) ? response.data : response.data.results || [];
   },
 
   // Get all approvals (list)
   list: async (): Promise<Approval[]> => {
     const response = await api.get('/approvals/');
-    return response.data;
+    // Handle paginated response
+    return Array.isArray(response.data) ? response.data : response.data.results || [];
   },
 
   // Get specific approval
@@ -73,7 +75,8 @@ export const approvalsAPI = {
   // Get my approval history
   myApprovals: async (): Promise<Approval[]> => {
     const response = await api.get('/approvals/my_approvals/');
-    return response.data;
+    // Handle paginated response - extract results array
+    return Array.isArray(response.data) ? response.data : response.data.results || [];
   },
 
   // Get approvals for a specific request

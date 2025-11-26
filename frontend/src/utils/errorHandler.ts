@@ -6,21 +6,48 @@
  */
 
 import { AxiosError } from 'axios';
-import { ErrorType, AppError, APIErrorResponse, ErrorField } from '@/types/errors';
+import { ErrorType, AppError, APIErrorResponse, ErrorField, UnifiedAPIResponse } from '@/types/errors';
+
+/**
+ * Check if error response follows the unified API response format
+ */
+function isUnifiedErrorResponse(data: any): data is UnifiedAPIResponse {
+  return (
+    data &&
+    typeof data === 'object' &&
+    'success' in data &&
+    data.success === false
+  );
+}
 
 /**
  * Parse API error response to extract field errors
+ * Handles both unified format and legacy DRF format
  */
-function parseFieldErrors(data: APIErrorResponse): ErrorField[] {
+function parseFieldErrors(data: APIErrorResponse | UnifiedAPIResponse): ErrorField[] {
   const fields: ErrorField[] = [];
 
-  // Handle Django REST Framework field errors
+  // Handle unified API response format with errors object
+  if (isUnifiedErrorResponse(data) && data.errors) {
+    Object.keys(data.errors).forEach((key) => {
+      const value = data.errors![key];
+      if (Array.isArray(value)) {
+        fields.push({
+          field: key,
+          message: value.join(', '),
+        });
+      }
+    });
+    return fields;
+  }
+
+  // Handle legacy Django REST Framework field errors
   Object.keys(data).forEach((key) => {
-    if (key === 'error' || key === 'detail' || key === 'message' || key === 'non_field_errors') {
+    if (key === 'error' || key === 'detail' || key === 'message' || key === 'non_field_errors' || key === 'success' || key === 'code' || key === 'errors') {
       return; // Skip these, they're handled separately
     }
 
-    const value = data[key];
+    const value = (data as APIErrorResponse)[key];
     if (Array.isArray(value)) {
       fields.push({
         field: key,
@@ -39,14 +66,30 @@ function parseFieldErrors(data: APIErrorResponse): ErrorField[] {
 
 /**
  * Get user-friendly error message from API response
+ * Handles both unified format and legacy DRF format
  */
-function getErrorMessage(data: APIErrorResponse): string {
-  // Priority order for extracting error messages
-  if (data.error) return data.error;
-  if (data.detail) return data.detail;
-  if (data.message) return data.message;
-  if (data.non_field_errors && data.non_field_errors.length > 0) {
-    return data.non_field_errors.join(', ');
+function getErrorMessage(data: APIErrorResponse | UnifiedAPIResponse): string {
+  // Handle unified API response format first
+  if (isUnifiedErrorResponse(data)) {
+    // Use message from unified format
+    if (data.message) return data.message;
+
+    // Check for field errors in the errors object
+    if (data.errors) {
+      const fieldErrors = parseFieldErrors(data);
+      if (fieldErrors.length > 0) {
+        return fieldErrors.map(f => `${f.field}: ${f.message}`).join(', ');
+      }
+    }
+  }
+
+  // Handle legacy format - Priority order for extracting error messages
+  const legacyData = data as APIErrorResponse;
+  if (legacyData.error) return legacyData.error;
+  if (legacyData.detail) return legacyData.detail;
+  if (legacyData.message) return legacyData.message;
+  if (legacyData.non_field_errors && legacyData.non_field_errors.length > 0) {
+    return legacyData.non_field_errors.join(', ');
   }
 
   // If we have field errors but no general message

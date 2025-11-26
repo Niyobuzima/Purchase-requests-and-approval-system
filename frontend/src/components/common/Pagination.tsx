@@ -90,7 +90,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             variant="outline"
             size="sm"
             onClick={handleNext}
-            disabled={currentPage === totalPages}
+            disabled={currentPage >= totalPages}
           >
             Next
             <ChevronRight className="h-4 w-4" />

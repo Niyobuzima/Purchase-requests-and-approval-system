@@ -1,6 +1,4 @@
-# ================================
-# 1. BUILDER STAGE (install deps with uv)
-# ================================
+#Builder stage
 FROM python:3.11-slim AS builder
 
 ENV PYTHONUNBUFFERED=1
@@ -37,11 +35,12 @@ RUN uv venv /app/.venv && \
         pillow==10.1.0 \
         reportlab==4.0.7 \
         uvicorn[standard]==0.27.0 \
-        gunicorn==21.2.0
+        gunicorn==21.2.0 \
+        drf-spectacular==0.27.0 \
+        drf-spectacular-sidecar==2024.1.1 \
+        whitenoise==6.6.0
 
-# ================================
-# 2. FINAL STAGE (small + fast)
-# ================================
+#Final Stage
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
@@ -62,9 +61,10 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY . /app/
 
-# Create directories and set permissions
-RUN mkdir -p /app/staticfiles /app/media && \
-    chmod +x /app/docker-entrypoint.sh
+# Create directories, set permissions, and collect static files during build
+RUN mkdir -p /app/staticfiles /app/media /app/logs && \
+    chmod +x /app/docker-entrypoint.sh && \
+    python manage.py collectstatic --noinput --clear
 
 EXPOSE 8000
 

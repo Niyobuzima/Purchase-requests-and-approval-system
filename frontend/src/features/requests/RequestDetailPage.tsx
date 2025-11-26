@@ -49,9 +49,9 @@ const RequestDetailPage: React.FC = () => {
     return '/staff/requests';
   };
 
-  // Fetch request details
+  // Fetch request details - optimized with parallel API calls
   useEffect(() => {
-    const fetchRequest = async () => {
+    const fetchData = async () => {
       if (!id) return;
 
       const requestId = parseInt(id, 10);
@@ -67,36 +67,31 @@ const RequestDetailPage: React.FC = () => {
 
       setLoading(true);
       try {
-        const data = await purchaseRequestsAPI.getById(requestId);
-        setRequest(data);
+        // Fetch all data in parallel for better performance
+        const [requestData, approvalsData, posResponse] = await Promise.all([
+          purchaseRequestsAPI.getById(requestId),
+          approvalsAPI.getByRequestId(requestId).catch(() => [] as Approval[]),
+          purchaseOrdersAPI.getAll({ request: requestId }).catch(() => ({ results: [] })),
+        ]);
 
-        // Fetch all approvals for this request to show timeline
-        try {
-          const approvals = await approvalsAPI.getByRequestId(requestId);
-          setAllApprovals(approvals);
+        // Set request data
+        setRequest(requestData);
 
-          if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
-            const userLevel = user.role === 'APPROVER_L1' ? 1 : 2;
-            const approval = approvals.find(
-              (a) => a.level === userLevel && a.status === 'PENDING'
-            );
-            setPendingApproval(approval || null);
-          }
-        } catch (err) {
+        // Set approvals data
+        setAllApprovals(approvalsData);
+        if (user?.role === 'APPROVER_L1' || user?.role === 'APPROVER_L2') {
+          const userLevel = user.role === 'APPROVER_L1' ? 1 : 2;
+          const approval = approvalsData.find(
+            (a) => a.level === userLevel && a.status === 'PENDING'
+          );
+          setPendingApproval(approval || null);
         }
 
-        // Fetch purchase order if request is approved
-        if (data.status === 'APPROVED') {
-          try {
-            const posResponse = await purchaseOrdersAPI.getAll({ request: requestId });
-            if (posResponse.results && posResponse.results.length > 0) {
-              setPurchaseOrder(posResponse.results[0]);
-            } else {
-              setPurchaseOrder(null);
-            }
-          } catch (err) {
-            setPurchaseOrder(null);
-          }
+        // Set purchase order if request is approved and PO exists
+        if (requestData.status === 'APPROVED' && posResponse.results?.length > 0) {
+          setPurchaseOrder(posResponse.results[0]);
+        } else {
+          setPurchaseOrder(null);
         }
       } catch (error) {
         const { toastData } = handleAndFormatError(error);
@@ -107,7 +102,7 @@ const RequestDetailPage: React.FC = () => {
       }
     };
 
-    fetchRequest();
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, navigate, toast]);
 

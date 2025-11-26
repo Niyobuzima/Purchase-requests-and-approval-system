@@ -193,20 +193,21 @@ export const UserForm: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      {/* Header */}
-      <div className="mb-8">
-        <Button variant="ghost" onClick={() => navigate('/admin/users')} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Users
-        </Button>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {isEditing ? 'Edit User' : 'Create New User'}
-        </h1>
-        <p className="text-gray-600 mt-2">
-          {isEditing ? 'Update user information and role' : 'Add a new user to the system'}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <Button variant="ghost" onClick={() => navigate('/admin/users')} className="mb-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Users
+          </Button>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {isEditing ? 'Edit User' : 'Create New User'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {isEditing ? 'Update user information and role' : 'Add a new user to the system'}
+          </p>
+        </div>
 
       <form onSubmit={handleSubmit}>
         <Card>
@@ -371,6 +372,7 @@ export const UserForm: React.FC = () => {
           </CardContent>
         </Card>
       </form>
+      </div>
     </div>
   );
 };
