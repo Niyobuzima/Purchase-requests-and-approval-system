@@ -1,0 +1,93 @@
+name: Deploy
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Upload project to server
+        run: |
+          rsync -avz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='venv' \
+            --exclude='__pycache__' \
+            --exclude='.env' \
+            --exclude='*.pyc' \
+            -e "ssh -o StrictHostKeyChecking=yes" \
+            . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/app
+
+      - name: Create backend .env file
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "echo 'DEBUG=False
+          SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=db
+          DB_PORT=5432
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL=${{ secrets.OPENAI_MODEL }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          AI_PROVIDER_PRIORITY=${{ secrets.AI_PROVIDER_PRIORITY }}
+          EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT=${{ secrets.EMAIL_PORT }}
+          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}' | sed 's/^[[:space:]]*//' > /root/app/backend/.env"
+
+      - name: Create frontend .env file
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "echo 'VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}' > /root/app/frontend/.env"
+
+      - name: Verify env files
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "echo '=== Backend .env ===' && cat /root/app/backend/.env | head -5 && echo '...(truncated)'"
+
+      - name: Clean Docker build cache
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "docker builder prune -af && docker system prune -af --volumes=false"
+
+      - name: Deploy Docker Compose stack
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && export VITE_API_BASE_URL='${{ secrets.VITE_API_BASE_URL }}' && docker compose -f docker-compose.prod.yml down --remove-orphans && docker compose -f docker-compose.prod.yml build --no-cache --pull && docker compose -f docker-compose.prod.yml up -d"
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start (migrations and static files run automatically)..."
+          sleep 60
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml ps"
+
+      - name: Verify backend health
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "curl -f http://localhost:8000/api/health/ || echo 'Health check endpoint not available yet'"
+
+      - name: Show deployment logs
+        if: always()
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "cd /root/app && docker compose -f docker-compose.prod.yml logs --tail=150"

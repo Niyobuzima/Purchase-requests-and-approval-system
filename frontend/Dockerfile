@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build argument for API URL (can be overridden at build time)
-ARG VITE_API_BASE_URL=http://localhost:8000/api
+# Build argument for API URL (must be provided at build time)
+ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Build the application
