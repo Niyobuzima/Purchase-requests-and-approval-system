@@ -68,9 +68,9 @@ purchase-requests-and-approval-system/
 
 | Service | URL |
 |---------|-----|
-| **Frontend** | https://purchase-requests-and-approval-syst.vercel.app/ |
-| **Backend API** | https://purchase-requests-and-approval-system.onrender.com/ |
-| **API Docs (Swagger)** | https://purchase-requests-and-approval-system.onrender.com/api/docs/ |
+| **Vercel Frontend** | https://purchase-requests-and-approval-syst.vercel.app/ |
+| **Onrender Backend API** | https://purchase-requests-and-approval-system.onrender.com/ |
+| **Onrender API Docs (Swagger)** | https://purchase-requests-and-approval-system.onrender.com/api/docs/ |
 ## Quick Start
 
 ### Prerequisites
@@ -112,6 +112,7 @@ purchase-requests-and-approval-system/
    OPENAI_API_KEY=sk-your-OPENAI-key
    OPENAI_MODEL=gpt-5
    GEMINI_API_KEY=AI-your-gemini-key
+   AI_PROVIDER_PRIORITY=openai,gemini
    CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
    JWT_ACCESS_TOKEN_LIFETIME=60
    JWT_REFRESH_TOKEN_LIFETIME=1440
